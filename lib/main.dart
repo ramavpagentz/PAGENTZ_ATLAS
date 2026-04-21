@@ -10,6 +10,8 @@ import 'modules/auth/screens/access_denied_screen.dart';
 import 'modules/auth/screens/login_screen.dart';
 import 'modules/auth/screens/mfa_challenge_screen.dart';
 import 'modules/auth/screens/mfa_enrollment_screen.dart';
+import 'modules/customers/screens/customer_detail_screen.dart';
+import 'modules/customers/screens/customer_directory_screen.dart';
 import 'modules/home/screens/home_dashboard.dart';
 
 Future<void> main() async {
@@ -44,39 +46,24 @@ class AtlasApp extends StatelessWidget {
         GetPage(name: '/mfa-challenge', page: () => const MfaChallengeScreen()),
         GetPage(name: '/access-denied', page: () => const AccessDeniedScreen()),
         GetPage(name: '/home', page: () => const HomeDashboard()),
+        GetPage(
+            name: '/customers',
+            page: () => const CustomerDirectoryScreen()),
+        GetPage(
+            name: '/customers/:orgId',
+            page: () => const CustomerDetailScreen()),
       ],
     );
   }
 }
 
+/// Shown at '/' while the auth state resolves on app boot. Routing itself is
+/// handled by `StaffAuthController._handleGateChange`.
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
   @override
   Widget build(BuildContext context) {
-    final c = Get.find<StaffAuthController>();
-    return Obx(() {
-      switch (c.gate.value) {
-        case AuthGate.loading:
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
-        case AuthGate.signedOut:
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => Get.offAllNamed('/login'));
-          return const SizedBox.shrink();
-        case AuthGate.notStaff:
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => Get.offAllNamed('/access-denied'));
-          return const SizedBox.shrink();
-        case AuthGate.mfaEnrollmentNeeded:
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => Get.offAllNamed('/mfa-enroll'));
-          return const SizedBox.shrink();
-        case AuthGate.ready:
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => Get.offAllNamed('/home'));
-          return const SizedBox.shrink();
-      }
-    });
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

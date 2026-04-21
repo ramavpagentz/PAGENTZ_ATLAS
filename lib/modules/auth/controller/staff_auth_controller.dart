@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 
 import '../../../core/models/staff_user_model.dart';
@@ -19,6 +20,44 @@ class StaffAuthController extends GetxController {
   void onInit() {
     super.onInit();
     _svc.authStateChanges().listen(_onAuthChanged);
+    // Route on gate changes regardless of which screen is mounted.
+    // Previously the routing lived in the _AuthGate widget at '/', which only
+    // fired when that widget was actively rebuilding — leaving the app stuck
+    // on /mfa-challenge after a successful challenge.
+    ever<AuthGate>(gate, _handleGateChange);
+  }
+
+  void _handleGateChange(AuthGate g) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final current = Get.currentRoute;
+      switch (g) {
+        case AuthGate.loading:
+          return;
+        case AuthGate.signedOut:
+          if (current != '/login') Get.offAllNamed('/login');
+          return;
+        case AuthGate.notStaff:
+          if (current != '/access-denied') Get.offAllNamed('/access-denied');
+          return;
+        case AuthGate.mfaEnrollmentNeeded:
+          if (current != '/mfa-enroll') Get.offAllNamed('/mfa-enroll');
+          return;
+        case AuthGate.ready:
+          // If on any unauthed/auth-step screen, route to /home. Otherwise
+          // leave the user where they are (e.g. /customers, /customers/:id).
+          const preAuthRoutes = {
+            '/',
+            '/login',
+            '/mfa-challenge',
+            '/mfa-enroll',
+            '/access-denied',
+          };
+          if (preAuthRoutes.contains(current)) {
+            Get.offAllNamed('/home');
+          }
+          return;
+      }
+    });
   }
 
   Future<void> _onAuthChanged(User? user) async {
