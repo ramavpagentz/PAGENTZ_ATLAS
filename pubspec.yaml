@@ -1,0 +1,41 @@
+name: pagentz_atlas
+description: "PagentZ Atlas — internal admin console for the PagentZ SaaS"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Firebase
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+  cloud_firestore: ^5.5.0
+  cloud_functions: ^5.1.5
+
+  # State + routing
+  get: ^4.6.6
+
+  # UI
+  data_table_2: ^2.5.16
+  fl_chart: ^0.69.0
+
+  # Utilities
+  intl: ^0.19.0
+  csv: ^6.0.0
+  http: ^1.2.2
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

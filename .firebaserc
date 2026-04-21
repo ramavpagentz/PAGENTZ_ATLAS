@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "default": "pagentz"
+  },
+  "targets": {
+    "pagentz": {
+      "hosting": {
+        "atlas": ["atlas-13fd3"]
+      }
+    }
+  }
+}

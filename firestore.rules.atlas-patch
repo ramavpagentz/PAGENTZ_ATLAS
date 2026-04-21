@@ -1,0 +1,88 @@
+// ============================================================================
+// ATLAS RULES PATCH — merge into pagentz project's firestore.rules
+// ============================================================================
+// This file lives in the Atlas repo purely for reference. Firestore rules are
+// global per Firebase project and must be deployed from ONE canonical source —
+// that source is the main PAGENTZDEV-dev repo's firestore.rules. Copy these
+// helpers and match blocks into that file and deploy from there.
+//
+// Run after merging, from main repo:
+//     firebase deploy --only firestore:rules --project pagentz
+// ============================================================================
+
+// ----- Helpers (add near the top, inside rules_version = '2'; service ... { ) -----
+
+function isStaff() {
+  return request.auth != null
+    && request.auth.token.firebase.tenant == 'Atlas-Staff-2o08x'
+    && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isStaff == true
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true;
+}
+
+function staffRoleIs(role) {
+  return isStaff()
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.staffRole == role;
+}
+
+function staffRoleIn(roles) {
+  return isStaff()
+    && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.staffRole in roles);
+}
+
+// ----- Staff-only collections (add as new match blocks) -----
+
+// Immutable audit log of every staff action. No update, no delete, ever.
+match /staff_audit_logs/{logId} {
+  allow read:   if staffRoleIn(['admin', 'owner']);
+  allow create: if isStaff();
+  allow update: if false;
+  allow delete: if false;
+}
+
+match /support_tickets/{ticketId} {
+  allow read, write: if isStaff();
+
+  match /messages/{messageId} {
+    allow read, write: if isStaff();
+  }
+}
+
+match /impersonation_sessions/{sessionId} {
+  allow read:   if isStaff();
+  allow create: if isStaff();
+  allow update: if isStaff();
+  allow delete: if false;
+}
+
+// ----- Staff read access to existing customer collections -----
+//
+// For each existing customer-facing collection, ADD `|| isStaff()` to its
+// `allow read` condition so staff can view any customer's data. Do NOT grant
+// staff write access blanketly — staff writes should go through Cloud Functions
+// that also write a staff_audit_logs entry atomically.
+//
+// Example (adapt to whatever the current rule looks like):
+//
+//   match /organizations/{orgId} {
+//     allow read:  if isStaff() || isOrgMember(orgId);
+//     allow write: if isOrgMember(orgId) && hasRole(orgId, 'admin');
+//     // staff writes go through cloud functions — not rule-level
+//   }
+//
+// Repeat for: organizations, organizations/{orgId}/members, AllTeams,
+// Oncall_Schedules, escalation_policies, activity_logs, inbound_emails, etc.
+
+// ----- Protect the users collection from staff write escalation -----
+//
+// Staff can READ any user doc, but staff must NOT be able to edit their own
+// staffRole, staffTenantId, or isStaff field via client writes. Those fields
+// can only be changed by privileged Cloud Functions using Admin SDK.
+//
+//   match /users/{uid} {
+//     allow read: if request.auth.uid == uid || isStaff();
+//     allow update: if request.auth.uid == uid
+//       && !request.resource.data.diff(resource.data).affectedKeys()
+//            .hasAny(['isStaff', 'staffRole', 'staffTenantId', 'disabled']);
+//     // Admin SDK / Cloud Functions bypass rules entirely
+//   }
