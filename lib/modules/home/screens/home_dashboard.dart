@@ -105,8 +105,13 @@ class HomeDashboard extends StatelessWidget {
                       _NavCard(
                         icon: Icons.group_outlined,
                         title: 'Staff',
-                        subtitle: 'Phase 6',
-                        enabled: false,
+                        subtitle: u.staffRole == StaffRole.admin ||
+                                u.staffRole == StaffRole.owner
+                            ? 'Add / role / disable'
+                            : 'Admin/owner only',
+                        enabled: u.staffRole == StaffRole.admin ||
+                            u.staffRole == StaffRole.owner,
+                        onTap: () => Get.toNamed('/staff'),
                       ),
                       _NavCard(
                         icon: Icons.settings_outlined,

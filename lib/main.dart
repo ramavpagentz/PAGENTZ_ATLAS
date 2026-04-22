@@ -14,6 +14,7 @@ import 'modules/auth/screens/mfa_enrollment_screen.dart';
 import 'modules/customers/screens/customer_detail_screen.dart';
 import 'modules/customers/screens/customer_directory_screen.dart';
 import 'modules/home/screens/home_dashboard.dart';
+import 'modules/staff/screens/staff_management_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +55,7 @@ class AtlasApp extends StatelessWidget {
             name: '/customers/:orgId',
             page: () => const CustomerDetailScreen()),
         GetPage(name: '/audit', page: () => const AuditLogScreen()),
+        GetPage(name: '/staff', page: () => const StaffManagementScreen()),
       ],
     );
   }
