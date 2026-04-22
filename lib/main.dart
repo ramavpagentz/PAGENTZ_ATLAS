@@ -6,6 +6,7 @@ import 'core/config/atlas_config.dart';
 import 'core/config/firebase_options.dart';
 import 'core/services/staff_auth_service.dart';
 import 'modules/auth/controller/staff_auth_controller.dart';
+import 'modules/audit/screens/audit_log_screen.dart';
 import 'modules/auth/screens/access_denied_screen.dart';
 import 'modules/auth/screens/login_screen.dart';
 import 'modules/auth/screens/mfa_challenge_screen.dart';
@@ -52,6 +53,7 @@ class AtlasApp extends StatelessWidget {
         GetPage(
             name: '/customers/:orgId',
             page: () => const CustomerDetailScreen()),
+        GetPage(name: '/audit', page: () => const AuditLogScreen()),
       ],
     );
   }

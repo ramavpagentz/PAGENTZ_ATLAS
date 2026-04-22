@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../controller/customer_detail_controller.dart';
 import '../models/organization_model.dart';
+import '../widgets/customer_activity_timeline.dart';
 
 class CustomerDetailScreen extends StatelessWidget {
   const CustomerDetailScreen({super.key});
@@ -54,13 +55,7 @@ class CustomerDetailScreen extends StatelessWidget {
             children: [
               _OverviewTab(org: o, memberCount: c.members.length),
               _MembersTab(members: c.members),
-              const Center(
-                child: Text(
-                  'Phase 3 coming: activity timeline (customer-side logs from Postgres + staff actions from audit log, merged).',
-                  style: TextStyle(color: Colors.white60),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              CustomerActivityTimeline(orgId: o.id),
               const Center(
                 child: Text(
                   'Phase 5 coming: support tickets scoped to this customer.',

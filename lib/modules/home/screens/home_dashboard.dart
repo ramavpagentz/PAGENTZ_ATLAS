@@ -94,8 +94,13 @@ class HomeDashboard extends StatelessWidget {
                       _NavCard(
                         icon: Icons.shield_outlined,
                         title: 'Audit log',
-                        subtitle: 'Phase 3',
-                        enabled: false,
+                        subtitle: u.staffRole == StaffRole.admin ||
+                                u.staffRole == StaffRole.owner
+                            ? 'Staff actions'
+                            : 'Admin/owner only',
+                        enabled: u.staffRole == StaffRole.admin ||
+                            u.staffRole == StaffRole.owner,
+                        onTap: () => Get.toNamed('/audit'),
                       ),
                       _NavCard(
                         icon: Icons.group_outlined,
