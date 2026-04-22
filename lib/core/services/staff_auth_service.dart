@@ -67,12 +67,33 @@ class StaffAuthService {
         email: AppConfig.bootstrapAdminEmail,
         password: AppConfig.bootstrapAdminPassword,
       );
+      // Ensure the Firestore doc has Atlas fields (may be missing if the
+      // account existed before Atlas was deployed).
+      if (cred.user != null) {
+        await _db.collection('users').doc(cred.user!.uid).set({
+          'email': AppConfig.bootstrapAdminEmail,
+          'displayName': AppConfig.bootstrapAdminName,
+          'isAtlas': true,
+          'staffRole': StaffRole.owner.id,
+          'mfaEnrolled': false,
+          'disabled': false,
+        }, SetOptions(merge: true));
+      }
       return _validateStaff(cred.user);
     } on FirebaseAuthException catch (e) {
       if (e.code != 'user-not-found' && e.code != 'invalid-credential') {
         return StaffSignInResult.failed(_friendlyAuthError(e));
       }
       // Fall through to create-the-admin path below.
+    } catch (e) {
+      // On web, Firebase may throw a generic Exception instead of
+      // FirebaseAuthException. Check the message for known codes.
+      final msg = e.toString();
+      if (msg.contains('user-not-found') || msg.contains('invalid-credential')) {
+        // Fall through to create-the-admin path below.
+      } else {
+        return StaffSignInResult.failed(msg);
+      }
     }
 
     // Create the account
