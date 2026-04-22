@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 
 import '../../../core/models/staff_user_model.dart';
+import '../../../core/services/session_timeout_service.dart';
 import '../../../core/services/staff_auth_service.dart';
 
 enum AuthGate { loading, signedOut, notStaff, mfaEnrollmentNeeded, ready }
@@ -28,6 +29,20 @@ class StaffAuthController extends GetxController {
   }
 
   void _handleGateChange(AuthGate g) {
+    // Manage the session/idle timers at state transitions.
+    switch (g) {
+      case AuthGate.ready:
+        SessionTimeoutService.instance.startForNewSession();
+        break;
+      case AuthGate.signedOut:
+      case AuthGate.notStaff:
+        SessionTimeoutService.instance.clear();
+        break;
+      case AuthGate.loading:
+      case AuthGate.mfaEnrollmentNeeded:
+        break;
+    }
+
     SchedulerBinding.instance.addPostFrameCallback((_) {
       final current = Get.currentRoute;
       switch (g) {
@@ -43,8 +58,6 @@ class StaffAuthController extends GetxController {
           if (current != '/mfa-enroll') Get.offAllNamed('/mfa-enroll');
           return;
         case AuthGate.ready:
-          // If on any unauthed/auth-step screen, route to /home. Otherwise
-          // leave the user where they are (e.g. /customers, /customers/:id).
           const preAuthRoutes = {
             '/',
             '/login',

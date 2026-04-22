@@ -4,8 +4,10 @@ import 'package:get/get.dart';
 
 import 'core/config/atlas_config.dart';
 import 'core/config/firebase_options.dart';
+import 'core/services/session_timeout_service.dart';
 import 'core/services/staff_auth_service.dart';
 import 'modules/auth/controller/staff_auth_controller.dart';
+import 'widgets/idle_watchdog.dart';
 import 'modules/audit/screens/audit_log_screen.dart';
 import 'modules/auth/screens/access_denied_screen.dart';
 import 'modules/auth/screens/login_screen.dart';
@@ -15,6 +17,8 @@ import 'modules/customers/screens/customer_detail_screen.dart';
 import 'modules/customers/screens/customer_directory_screen.dart';
 import 'modules/home/screens/home_dashboard.dart';
 import 'modules/staff/screens/staff_management_screen.dart';
+import 'modules/tickets/screens/ticket_detail_screen.dart';
+import 'modules/tickets/screens/ticket_queue_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,9 +32,11 @@ class AtlasApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(SessionTimeoutService(), permanent: true);
     Get.put(StaffAuthController(), permanent: true);
 
     return GetMaterialApp(
+      builder: (context, child) => IdleWatchdog(child: child ?? const SizedBox()),
       title: AtlasConfig.productName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -56,6 +62,10 @@ class AtlasApp extends StatelessWidget {
             page: () => const CustomerDetailScreen()),
         GetPage(name: '/audit', page: () => const AuditLogScreen()),
         GetPage(name: '/staff', page: () => const StaffManagementScreen()),
+        GetPage(name: '/tickets', page: () => const TicketQueueScreen()),
+        GetPage(
+            name: '/tickets/:ticketId',
+            page: () => const TicketDetailScreen()),
       ],
     );
   }

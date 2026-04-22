@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../tickets/models/ticket_models.dart';
+import '../../tickets/services/ticket_service.dart';
+import '../../tickets/widgets/new_ticket_modal.dart';
 import '../controller/customer_detail_controller.dart';
 import '../models/organization_model.dart';
 import '../widgets/customer_activity_timeline.dart';
@@ -56,13 +59,7 @@ class CustomerDetailScreen extends StatelessWidget {
               _OverviewTab(org: o, memberCount: c.members.length),
               _MembersTab(members: c.members),
               CustomerActivityTimeline(orgId: o.id),
-              const Center(
-                child: Text(
-                  'Phase 5 coming: support tickets scoped to this customer.',
-                  style: TextStyle(color: Colors.white60),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              _CustomerTicketsTab(orgId: o.id, orgName: o.name),
             ],
           );
         }),
@@ -186,5 +183,152 @@ class _MembersTab extends StatelessWidget {
         ),
       );
     });
+  }
+}
+
+class _CustomerTicketsTab extends StatefulWidget {
+  final String orgId;
+  final String orgName;
+  const _CustomerTicketsTab({required this.orgId, required this.orgName});
+
+  @override
+  State<_CustomerTicketsTab> createState() => _CustomerTicketsTabState();
+}
+
+class _CustomerTicketsTabState extends State<_CustomerTicketsTab> {
+  bool _loading = true;
+  String? _error;
+  List<SupportTicket> _tickets = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list =
+          await TicketService.instance.listTickets(orgId: widget.orgId);
+      if (!mounted) return;
+      setState(() {
+        _tickets = list;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load tickets: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _newTicket() async {
+    final t = await Get.dialog<SupportTicket>(
+      NewTicketModal(
+        lockedOrgId: widget.orgId,
+        lockedOrgName: widget.orgName,
+      ),
+    );
+    if (t != null) {
+      Get.toNamed('/tickets/${t.id}');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_error!,
+              style: const TextStyle(color: Colors.redAccent)),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('${_tickets.length} ticket${_tickets.length == 1 ? "" : "s"}',
+                  style: const TextStyle(color: Colors.white60)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                onPressed: _load,
+                tooltip: 'Refresh',
+              ),
+              FilledButton.icon(
+                onPressed: _newTicket,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('New ticket'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _tickets.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.inbox_outlined,
+                            size: 48, color: Colors.white24),
+                        const SizedBox(height: 12),
+                        const Text('No tickets yet for this customer.',
+                            style: TextStyle(color: Colors.white60)),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _newTicket,
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Create the first ticket'),
+                        ),
+                      ],
+                    ),
+                  )
+                : DataTable2(
+                    columnSpacing: 16,
+                    horizontalMargin: 10,
+                    minWidth: 780,
+                    columns: const [
+                      DataColumn2(label: Text('#'), size: ColumnSize.S),
+                      DataColumn2(label: Text('Subject'), size: ColumnSize.L),
+                      DataColumn2(label: Text('Priority'), size: ColumnSize.S),
+                      DataColumn2(label: Text('Status'), size: ColumnSize.S),
+                      DataColumn2(label: Text('Updated'), size: ColumnSize.M),
+                    ],
+                    rows: _tickets
+                        .map((t) => DataRow2(
+                              onTap: () => Get.toNamed('/tickets/${t.id}'),
+                              cells: [
+                                DataCell(Text(t.ticketNumber,
+                                    style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12))),
+                                DataCell(Text(t.subject,
+                                    overflow: TextOverflow.ellipsis)),
+                                DataCell(Text(t.priority.label)),
+                                DataCell(Text(t.status.label)),
+                                DataCell(Text(t.updatedAt == null
+                                    ? '—'
+                                    : DateFormat('MMM d HH:mm').format(
+                                        t.updatedAt!.toLocal()))),
+                              ],
+                            ))
+                        .toList(),
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }
