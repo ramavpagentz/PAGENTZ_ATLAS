@@ -1,0 +1,69 @@
+// ──────────────────────────────────────────────────────────────────────────
+// PAGENTZ ATLAS — Firestore Security Rules
+//
+// These rules are MEANT TO BE MERGED INTO the main pagentz repo's
+// `firestore.rules` file. They add staff-only access controls.
+//
+// AFTER MERGING, deploy with:
+//   firebase deploy --only firestore:rules
+// ──────────────────────────────────────────────────────────────────────────
+
+// ─── Helper functions ───
+function isAtlas() {
+  return request.auth != null
+    && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAtlas == true
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true;
+}
+
+function staffRoleLevel() {
+  let role = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.staffRole;
+  return role == 'owner' ? 5
+       : role == 'admin' ? 4
+       : role == 'engineer' ? 3
+       : role == 'l2_support' ? 2
+       : role == 'l1_support' ? 1
+       : 0;
+}
+
+function isAdminOrOwner() {
+  return isAtlas() && staffRoleLevel() >= 4;
+}
+
+// ─── Staff audit log: append-only, only admins+ can read ───
+match /staff_audit_logs/{logId} {
+  allow read: if isAdminOrOwner();
+  allow create: if isAtlas();
+  allow update: if false;
+  allow delete: if false;
+}
+
+// ─── Support tickets: any staff member can read/write ───
+match /support_tickets/{ticketId} {
+  allow read, write: if isAtlas();
+
+  match /messages/{messageId} {
+    allow read, write: if isAtlas();
+  }
+}
+
+// ─── Impersonation sessions: any staff can create their own ───
+match /impersonation_sessions/{sessionId} {
+  allow read: if isAdminOrOwner()
+    || (isAtlas() && resource.data.staffUid == request.auth.uid);
+  allow create: if isAtlas() && request.resource.data.staffUid == request.auth.uid;
+  allow update: if isAtlas() && resource.data.staffUid == request.auth.uid;
+  allow delete: if false;
+}
+
+// ─── Allow staff to READ ALL existing customer data ───
+// IMPORTANT: This is added to the EXISTING /organizations/{orgId} rule.
+// Customers' write permissions to their own org are unchanged.
+//
+// Pattern:
+//   match /organizations/{orgId} {
+//     allow read: if isAtlas() || isOrgMember(orgId);   // <-- add isAtlas()
+//     allow write: ... (unchanged customer rules)
+//   }
+//
+// Apply the same pattern to subcollections like /members, /AllTeams, etc.

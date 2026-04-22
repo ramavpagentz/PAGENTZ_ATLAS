@@ -1,0 +1,217 @@
+# PagentZ Atlas
+
+Internal admin console for the PagentZ staff team. Built as a separate Flutter Web app that talks to the same Firebase project as the customer-facing PagentZ app.
+
+> Atlas is a complete reference map of every customer organization, every action, every support case — for staff only.
+
+---
+
+## What's in this repo (Phase 1 + 2 scaffold)
+
+| Layer | What's done |
+|-------|-------------|
+| **Project setup** | Flutter Web project, theme, routing |
+| **Auth** | Login screen (Google SSO + email/password), MFA-ready, staff guard, session restore |
+| **App shell** | Dark sidebar + top bar, responsive (collapses to drawer below 900px) |
+| **Home dashboard** | KPI placeholders, get-started card |
+| **Customer Directory** | Live list from Firestore, search, plan & status filters, sortable table |
+| **Customer Detail** | Header, info pills, Overview / Contact / Subscription cards |
+| **Audit logging** | `AuditLogService` — writes `VIEWED_CUSTOMER` and `LOGIN_SUCCESS` events |
+| **Firestore rules** | `isAtlas()` + `hasStaffRole()` helpers in `firestore_rules/atlas_rules.txt` |
+| **Cloud Function** | `atlasImpersonate` skeleton in `cloud_functions/atlas_impersonate.js` |
+
+## What's NOT yet done (future phases)
+
+- Phase 3: Activity timeline + audit log UI
+- Phase 4: Impersonation modal + customer-app banner
+- Phase 5: Support ticket queue
+- Phase 6: Staff management screen
+- Phase 7: Real KPIs on home dashboard
+- Phase 8: Security hardening (idle timeout, force MFA, rate limit)
+
+---
+
+## First-time setup
+
+### 1. Install dependencies
+
+```bash
+cd /Users/ramaveerapalli/Hemali/PAGENTZ_ATLAS
+flutter pub get
+```
+
+### 2. Connect Firebase (REQUIRED before running)
+
+Atlas uses the existing `pagentz` Firebase project. Run:
+
+```bash
+flutterfire configure
+```
+
+When prompted:
+- Select project: **pagentz**
+- Select platforms: **web** only
+
+This regenerates `lib/firebase_options.dart` with the real keys.
+
+### 3. Make Rama a staff user
+
+In the Firebase Console → Firestore → `users/{rama-uid}`, add these fields:
+
+```
+isAtlas: true
+staffRole: "owner"
+mfaEnrolled: true
+staffJoinedAt: <serverTimestamp>
+```
+
+### 4. Run locally
+
+```bash
+flutter run -d chrome
+```
+
+Atlas opens at `http://localhost:port`. Log in with rama@pagentz.com.
+
+---
+
+## Deploy to atlas.pagentz.com
+
+### Create the new Firebase Hosting site
+
+```bash
+# from the main pagentz repo
+firebase hosting:sites:create atlas
+firebase target:apply hosting atlas atlas
+```
+
+Add to the main repo's `firebase.json`:
+
+```json
+{
+  "hosting": [
+    { "target": "pagentz", ... },
+    {
+      "target": "atlas",
+      "public": "../PAGENTZ_ATLAS/build/web",
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        { "source": "**", "headers": [
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        ]}
+      ]
+    }
+  ]
+}
+```
+
+### Build + deploy
+
+```bash
+# In Atlas repo
+flutter build web --dart-define=ENV=prod
+
+# In main pagentz repo
+firebase deploy --only hosting:atlas
+```
+
+### Cloudflare DNS
+
+Add a CNAME: `atlas` → `atlas.web.app` (proxied / orange cloud on).
+
+Then in Firebase Console → Hosting → Custom Domain: add `atlas.pagentz.com` and wait ~15 min for SSL.
+
+---
+
+## Deploy the Cloud Function
+
+Copy `cloud_functions/atlas_impersonate.js` into the main pagentz repo's `cloud-functions/functions/` directory and add to `index.js`:
+
+```js
+const atlas = require('./atlas_impersonate');
+exports.atlasImpersonate = atlas.atlasImpersonate;
+```
+
+Then:
+
+```bash
+firebase deploy --only functions:atlasImpersonate
+```
+
+---
+
+## Deploy the Firestore rules
+
+Open `firestore_rules/atlas_rules.txt`. Merge the contents into the main pagentz repo's `firestore.rules` file (carefully — read the in-file comments). Then:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│  atlas.pagentz.com  ←  staff only, MFA required   │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     ▼
+       ┌─────────────────────────┐
+       │  Firebase Hosting       │
+       │  Atlas site (web build) │
+       └────────────┬────────────┘
+                    │
+                    ▼
+       ┌─────────────────────────────────────────┐
+       │  Same `pagentz` Firebase project        │
+       │  - Auth (staff users have isAtlas:true) │
+       │  - Firestore (security rules enforce)   │
+       │  - Cloud Functions (atlasImpersonate)   │
+       └─────────────────────────────────────────┘
+```
+
+### Folder structure
+
+```
+lib/
+├── main.dart                         # entry, Firebase init
+├── main_app.dart                     # GetMaterialApp + routing
+├── firebase_options.dart             # GENERATED by flutterfire
+├── core/
+│   ├── config/app_config.dart        # env, URLs, constants
+│   ├── models/                       # StaffUser, CustomerOrg, AuditLog
+│   └── services/                     # auth, audit, customer
+├── modules/
+│   ├── auth/                         # login, splash, controller
+│   ├── home/                         # dashboard
+│   └── customers/                    # directory, detail, controller
+├── theme/
+│   ├── atlas_colors.dart             # dark slate + emerald (distinct from PagentZ)
+│   └── atlas_theme.dart
+├── utils/
+│   └── routes.dart
+└── widgets/
+    └── app_shell.dart                # sidebar + top bar layout
+```
+
+---
+
+## Design notes
+
+- **Visually distinct from PagentZ** — Atlas uses a dark slate sidebar with emerald accents. The customer app uses indigo/purple. There should never be confusion about which app you're in.
+- **Code patterns match PagentZ** — GetX state management, controller-per-screen, model files in `core/models/`.
+- **Single Firebase project** — staff and customer users live in the same `users/` collection, distinguished by `isAtlas: true`. Rama can have one account that works in both apps.
+- **Audit log everything** — every staff action (especially impersonation, PII reveal, edits) writes to `staff_audit_logs`. Append-only, enforced by Firestore rules.
+
+---
+
+## Next steps for Hemal
+
+1. Run `flutter pub get`
+2. Run `flutterfire configure` to wire up Firebase
+3. Open in Chrome and test the login flow
+4. Continue with **Phase 3** (audit log UI) per the build plan
