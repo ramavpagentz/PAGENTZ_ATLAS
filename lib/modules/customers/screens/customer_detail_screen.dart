@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/models/customer_org_model.dart';
 import '../../../core/services/customer_service.dart';
 import '../../../theme/atlas_colors.dart';
+import '../../../theme/atlas_text.dart';
 import '../../../utils/routes.dart';
 import '../../../widgets/app_shell.dart';
 import '../../../widgets/pii_field.dart';
@@ -28,11 +29,12 @@ class CustomerDetailScreen extends StatelessWidget {
 
     return AppShell(
       currentRoute: AtlasRoutes.customerDetail,
-      pageTitle: 'Customer Detail',
+      pageTitle: 'Customer detail',
+      pageSubtitle: 'View, support, or impersonate this organization.',
       child: Obx(() {
         if (controller.selectedLoading.value) {
           return const Padding(
-            padding: EdgeInsets.all(60),
+            padding: EdgeInsets.all(AtlasSpace.huge),
             child: Center(child: CircularProgressIndicator()),
           );
         }
@@ -48,22 +50,35 @@ class _NotFound extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.all(AtlasSpace.huge),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.business, size: 48, color: AtlasColors.textMuted),
-          const SizedBox(height: 12),
-          const Text(
-            'Customer not found.',
-            style: TextStyle(color: AtlasColors.textSecondary),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AtlasColors.pillNeutral,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.business_outlined,
+                size: 26, color: AtlasColors.textMuted),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AtlasSpace.md),
+          const Text('Customer not found',
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600,
+                  color: AtlasColors.textPrimary)),
+          const SizedBox(height: 4),
+          const Text('Try going back to the customers list.',
+              style: AtlasText.smallMuted),
+          const SizedBox(height: AtlasSpace.lg),
           OutlinedButton.icon(
             onPressed: () => Get.offAllNamed(AtlasRoutes.customers),
-            icon: const Icon(Icons.arrow_back, size: 16),
-            label: const Text('Back to customers'),
+            icon: const Icon(Icons.arrow_back, size: 14),
+            label: const Text('All customers'),
           ),
         ],
       ),
@@ -88,18 +103,32 @@ class _DetailBodyState extends State<_DetailBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Back button
-        TextButton.icon(
-          onPressed: () => Get.offAllNamed(AtlasRoutes.customers),
-          icon: const Icon(Icons.arrow_back, size: 16),
-          label: const Text('All customers'),
-          style: TextButton.styleFrom(foregroundColor: AtlasColors.textSecondary),
+        // Breadcrumb
+        InkWell(
+          onTap: () => Get.offAllNamed(AtlasRoutes.customers),
+          borderRadius: BorderRadius.circular(AtlasRadius.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AtlasSpace.sm, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.arrow_back, size: 14, color: AtlasColors.textSecondary),
+                SizedBox(width: AtlasSpace.xs + 2),
+                Text('Customers',
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: AtlasColors.textSecondary)),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AtlasSpace.md),
 
         // Header card
         _HeaderCard(org: org),
-        const SizedBox(height: 18),
+        const SizedBox(height: AtlasSpace.xl),
 
         // Tabs
         Obx(() {
@@ -147,16 +176,17 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AtlasSpace.xl),
       decoration: BoxDecoration(
         color: AtlasColors.cardBg,
         border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AtlasRadius.lg),
+        boxShadow: AtlasElevation.sm,
       ),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 16,
-        runSpacing: 12,
+        spacing: AtlasSpace.lg,
+        runSpacing: AtlasSpace.md,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -166,29 +196,32 @@ class _HeaderCard extends StatelessWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [AtlasColors.accent, AtlasColors.accentHover],
+                    colors: [AtlasColors.accent, AtlasColors.accentActive],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(AtlasRadius.md),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AtlasColors.accent.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.business, color: Colors.white, size: 22),
+                child: const Icon(Icons.business_rounded,
+                    color: Colors.white, size: 22),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: AtlasSpace.md),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    org.name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: AtlasColors.textPrimary,
-                    ),
-                  ),
+                  Text(org.name, style: AtlasText.h2),
                   const SizedBox(height: 2),
                   Text(
                     org.industry ?? 'Organization',
-                    style: const TextStyle(color: AtlasColors.textSecondary, fontSize: 12),
+                    style: AtlasText.smallMuted,
                   ),
                 ],
               ),
@@ -232,34 +265,78 @@ class _TabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AtlasColors.cardBorder)),
+        border: Border(bottom: BorderSide(color: AtlasColors.divider)),
       ),
       child: Row(
         children: List.generate(tabs.length, (i) {
           final isSel = i == selectedIndex;
-          return InkWell(
+          return _TabItem(
+            label: tabs[i],
+            selected: isSel,
             onTap: () => onSelect(i),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isSel ? AtlasColors.accent : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Text(
-                tabs[i],
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: isSel ? AtlasColors.textPrimary : AtlasColors.textMuted,
-                ),
-              ),
-            ),
           );
         }),
+      ),
+    );
+  }
+}
+
+class _TabItem extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TabItem({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  State<_TabItem> createState() => _TabItemState();
+}
+
+class _TabItemState extends State<_TabItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AtlasSpace.md + 2, vertical: AtlasSpace.md),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: widget.selected
+                    ? AtlasColors.accent
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight:
+                  widget.selected ? FontWeight.w600 : FontWeight.w500,
+              color: widget.selected
+                  ? AtlasColors.textPrimary
+                  : (_hover
+                      ? AtlasColors.textPrimary
+                      : AtlasColors.textSecondary),
+              letterSpacing: -0.1,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -946,39 +1023,29 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AtlasColors.cardBg,
         border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AtlasRadius.lg),
+        boxShadow: AtlasElevation.sm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AtlasColors.accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AtlasColors.textPrimary,
-                ),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AtlasSpace.xl, AtlasSpace.lg,
+                AtlasSpace.xl, AtlasSpace.md),
+            child: Text(title, style: AtlasText.h3),
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: AtlasColors.cardBorder),
-          ...children,
+          const Divider(height: 1, color: AtlasColors.divider),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AtlasSpace.xl, vertical: AtlasSpace.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
         ],
       ),
     );
