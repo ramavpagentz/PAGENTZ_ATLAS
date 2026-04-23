@@ -30,41 +30,23 @@ class StaffManagementScreen extends StatelessWidget {
 
     return AppShell(
       currentRoute: AtlasRoutes.staff,
-      pageTitle: 'Staff',
+      pageTitle: 'Staff & permissions',
+      pageSubtitle: 'Manage who has Atlas access and what they can do.',
+      actions: [
+        ElevatedButton.icon(
+          onPressed: () => showAddStaffDialog(context),
+          icon: const Icon(Icons.person_add_outlined, size: 14),
+          label: const Text('Add staff'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            minimumSize: const Size(0, 36),
+            textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Staff & permissions',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: AtlasColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Manage who has Atlas access and what they can do.',
-                      style: TextStyle(color: AtlasColors.textSecondary, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => showAddStaffDialog(context),
-                icon: const Icon(Icons.person_add_outlined, size: 16),
-                label: const Text('Add staff'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-
           _Toolbar(controller: controller),
           const SizedBox(height: 16),
 

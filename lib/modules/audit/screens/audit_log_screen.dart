@@ -30,43 +30,27 @@ class AuditLogScreen extends StatelessWidget {
 
     return AppShell(
       currentRoute: AtlasRoutes.audit,
-      pageTitle: 'Audit Log',
+      pageTitle: 'Audit log',
+      pageSubtitle:
+          'Immutable record of every staff action. Cannot be edited or deleted.',
+      actions: [
+        Obx(() => OutlinedButton.icon(
+              onPressed: controller.filtered.isEmpty
+                  ? null
+                  : () => controller.exportCsv(),
+              icon: const Icon(Icons.download, size: 14),
+              label: Text('Export CSV (${controller.filtered.length})'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                minimumSize: const Size(0, 36),
+                textStyle: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
+            )),
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Staff audit log',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: AtlasColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Immutable record of every staff action. Cannot be edited or deleted.',
-                      style: TextStyle(color: AtlasColors.textSecondary, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              Obx(() => OutlinedButton.icon(
-                    onPressed: controller.filtered.isEmpty
-                        ? null
-                        : () => controller.exportCsv(),
-                    icon: const Icon(Icons.download, size: 16),
-                    label: Text('Export CSV (${controller.filtered.length})'),
-                  )),
-            ],
-          ),
-          const SizedBox(height: 18),
-
           _Filters(controller: controller),
           const SizedBox(height: 16),
 

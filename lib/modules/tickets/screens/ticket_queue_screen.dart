@@ -17,26 +17,11 @@ class TicketQueueScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppShell(
       currentRoute: AtlasRoutes.tickets,
-      pageTitle: 'Support Tickets',
+      pageTitle: 'Support tickets',
+      pageSubtitle: 'Triage, assign, respond, and resolve customer issues.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Heading + KPIs
-          const Text(
-            'Support queue',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              color: AtlasColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          const Text(
-            'Track every customer query — assign, respond, resolve.',
-            style: TextStyle(color: AtlasColors.textSecondary, fontSize: 13),
-          ),
-          const SizedBox(height: 18),
-
           // Status KPIs
           Obx(() => Row(
                 children: [
@@ -166,11 +151,13 @@ class _Kpi extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AtlasSpace.lg, vertical: AtlasSpace.md + 2),
         decoration: BoxDecoration(
           color: AtlasColors.cardBg,
           border: Border.all(color: AtlasColors.cardBorder),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AtlasRadius.lg),
+          boxShadow: AtlasElevation.sm,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,27 +167,29 @@ class _Kpi extends StatelessWidget {
                 Container(
                   width: 6,
                   height: 6,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  decoration:
+                      BoxDecoration(color: color, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  label,
+                  label.toUpperCase(),
                   style: const TextStyle(
                     fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AtlasColors.textMuted,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.6,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AtlasSpace.sm),
             Text(
               '$count',
               style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
                 color: AtlasColors.textPrimary,
+                letterSpacing: -0.4,
               ),
             ),
           ],
