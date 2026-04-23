@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/models/customer_org_model.dart';
 import '../../../core/models/support_ticket_model.dart';
 import '../../../theme/atlas_colors.dart';
+import '../../../theme/atlas_text.dart';
 import '../../../utils/routes.dart';
 import '../../../widgets/app_shell.dart';
 import '../../auth/controller/auth_controller.dart';
@@ -19,14 +20,12 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppShell(
       currentRoute: AtlasRoutes.home,
-      pageTitle: 'Home',
+      pageTitle: _greeting(),
+      pageSubtitle: 'Atlas at a glance',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Welcome(),
-          const SizedBox(height: 24),
-
-          // KPIs
+          // KPI grid
           LayoutBuilder(
             builder: (context, c) {
               final cols = c.maxWidth > 1100
@@ -35,49 +34,50 @@ class HomeScreen extends StatelessWidget {
                       ? 2
                       : 1;
               return Obx(() {
-                // Touch the observables Obx should watch.
                 final total = controller.totalCustomers;
-                final newThisWeek = controller.newThisWeek;
+                final newWeek = controller.newThisWeek;
                 final active = controller.activeThisMonth;
                 final open = controller.openTicketCount;
                 final urgent = controller.urgentTicketCount;
                 final healthy = controller.systemHealthy;
-
                 return GridView.count(
                   crossAxisCount: cols,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
+                  mainAxisSpacing: AtlasSpace.lg,
+                  crossAxisSpacing: AtlasSpace.lg,
                   shrinkWrap: true,
-                  childAspectRatio: 2.6,
+                  childAspectRatio: cols == 1 ? 4 : 2.4,
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
-                    _Kpi(
-                      label: 'Total Customers',
+                    _KpiCard(
+                      label: 'Total customers',
                       value: '$total',
-                      sublabel: '+$newThisWeek this week',
-                      icon: Icons.business,
-                      color: AtlasColors.accent,
+                      delta: newWeek > 0 ? '+$newWeek this week' : null,
+                      deltaPositive: true,
+                      icon: Icons.business_rounded,
                     ),
-                    _Kpi(
-                      label: 'Active This Month',
+                    _KpiCard(
+                      label: 'Active this month',
                       value: '$active',
-                      sublabel: 'logged in last 30d',
-                      icon: Icons.trending_up,
-                      color: AtlasColors.info,
+                      delta: total > 0
+                          ? '${(active * 100 / total).toStringAsFixed(0)}%'
+                          : null,
+                      icon: Icons.bolt_rounded,
                     ),
-                    _Kpi(
-                      label: 'Open Tickets',
+                    _KpiCard(
+                      label: 'Open tickets',
                       value: '$open',
-                      sublabel: '$urgent urgent',
-                      icon: Icons.support_agent,
-                      color: urgent > 0 ? AtlasColors.warning : AtlasColors.accent,
+                      delta: urgent > 0 ? '$urgent urgent' : null,
+                      deltaWarning: urgent > 0,
+                      icon: Icons.inbox_rounded,
                     ),
-                    _Kpi(
-                      label: 'System Health',
-                      value: healthy ? 'OK' : '…',
-                      sublabel: 'Firestore reachable',
-                      icon: healthy ? Icons.check_circle : Icons.sync,
-                      color: healthy ? AtlasColors.success : AtlasColors.warning,
+                    _KpiCard(
+                      label: 'System health',
+                      value: healthy ? 'Operational' : 'Checking',
+                      delta: healthy ? 'All systems normal' : null,
+                      deltaPositive: healthy,
+                      icon: healthy
+                          ? Icons.check_circle_rounded
+                          : Icons.sync_rounded,
                     ),
                   ],
                 );
@@ -85,144 +85,140 @@ class HomeScreen extends StatelessWidget {
             },
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: AtlasSpace.xxl),
 
-          // Two-column: recent signups + urgent tickets
-          LayoutBuilder(builder: (context, c) {
-            final isWide = c.maxWidth > 900;
-            final signups = _RecentSignupsCard(controller: controller);
-            final urgent = _UrgentTicketsCard(controller: controller);
-
-            if (isWide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          // Two-column dashboard
+          LayoutBuilder(
+            builder: (context, c) {
+              final isWide = c.maxWidth > 900;
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _RecentSignupsCard(controller: controller)),
+                    const SizedBox(width: AtlasSpace.lg),
+                    Expanded(child: _UrgentTicketsCard(controller: controller)),
+                  ],
+                );
+              }
+              return Column(
                 children: [
-                  Expanded(child: signups),
-                  const SizedBox(width: 14),
-                  Expanded(child: urgent),
+                  _RecentSignupsCard(controller: controller),
+                  const SizedBox(height: AtlasSpace.lg),
+                  _UrgentTicketsCard(controller: controller),
                 ],
               );
-            }
-            return Column(children: [signups, const SizedBox(height: 14), urgent]);
-          }),
+            },
+          ),
         ],
       ),
     );
   }
-}
 
-class _Welcome extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
+  String _greeting() {
     final auth = Get.find<AuthController>();
-    return Obx(() {
-      final staff = auth.currentStaff.value;
-      final name = staff?.displayName.split(' ').first ??
-          staff?.email.split('@').first ??
-          'there';
-      final hour = DateTime.now().hour;
-      final greeting = hour < 12
-          ? 'Good morning'
-          : hour < 18
-              ? 'Good afternoon'
-              : 'Good evening';
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$greeting, $name',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: AtlasColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          const Text(
-            'Atlas at a glance',
-            style: TextStyle(color: AtlasColors.textSecondary, fontSize: 13),
-          ),
-        ],
-      );
-    });
+    final staff = auth.currentStaff.value;
+    final name = staff?.displayName.split(' ').first ??
+        staff?.email.split('@').first ??
+        'there';
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 18
+            ? 'Good afternoon'
+            : 'Good evening';
+    return '$greeting, $name';
   }
 }
 
-class _Kpi extends StatelessWidget {
+// ─── KPI CARD ───────────────────────────────────────────────────────────
+
+class _KpiCard extends StatelessWidget {
   final String label;
   final String value;
-  final String sublabel;
+  final String? delta;
+  final bool deltaPositive;
+  final bool deltaWarning;
   final IconData icon;
-  final Color color;
-  const _Kpi({
+
+  const _KpiCard({
     required this.label,
     required this.value,
-    required this.sublabel,
     required this.icon,
-    required this.color,
+    this.delta,
+    this.deltaPositive = false,
+    this.deltaWarning = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final deltaColor = deltaWarning
+        ? AtlasColors.warning
+        : deltaPositive
+            ? AtlasColors.success
+            : AtlasColors.textMuted;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AtlasSpace.xl),
       decoration: BoxDecoration(
         color: AtlasColors.cardBg,
         border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AtlasRadius.lg),
+        boxShadow: AtlasElevation.sm,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, color: color, size: 22),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label.toUpperCase(),
+                  style: AtlasText.tiny.copyWith(
+                      fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+              Container(
+                padding: const EdgeInsets.all(AtlasSpace.xs + 2),
+                decoration: BoxDecoration(
+                  color: AtlasColors.accentSoft,
+                  borderRadius: BorderRadius.circular(AtlasRadius.sm),
+                ),
+                child: Icon(icon, size: 14, color: AtlasColors.accent),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: AtlasSpace.md),
+          Text(
+            value,
+            style: AtlasText.h1.copyWith(fontSize: 28, height: 1.0),
+          ),
+          if (delta != null) ...[
+            const SizedBox(height: AtlasSpace.sm),
+            Row(
               children: [
+                if (deltaPositive)
+                  Icon(Icons.arrow_upward, size: 11, color: deltaColor)
+                else if (deltaWarning)
+                  Icon(Icons.warning_amber_rounded,
+                      size: 11, color: deltaColor),
+                if (deltaPositive || deltaWarning)
+                  const SizedBox(width: 3),
                 Text(
-                  label,
-                  style: const TextStyle(
-                    color: AtlasColors.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AtlasColors.textPrimary,
-                    height: 1.1,
-                  ),
-                ),
-                Text(
-                  sublabel,
-                  style: const TextStyle(
-                    color: AtlasColors.textSecondary,
-                    fontSize: 11,
+                  delta!,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: deltaColor,
                   ),
                 ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
+
+// ─── RECENT SIGNUPS ─────────────────────────────────────────────────────
 
 class _RecentSignupsCard extends StatelessWidget {
   final HomeController controller;
@@ -230,39 +226,17 @@ class _RecentSignupsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AtlasColors.cardBg,
-        border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CardHeader(
-            title: 'Recent customer signups',
-            actionLabel: 'View all',
-            onAction: () => Get.toNamed(AtlasRoutes.customers),
-          ),
-          Obx(() {
-            final signups = controller.recentSignups;
-            if (signups.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(28),
-                child: Center(
-                  child: Text(
-                    'No customers yet.',
-                    style: TextStyle(color: AtlasColors.textMuted, fontSize: 13),
-                  ),
-                ),
-              );
-            }
-            return Column(
-              children: signups.map((o) => _OrgRow(org: o)).toList(),
-            );
-          }),
-        ],
-      ),
+    return _DashboardCard(
+      title: 'Recent customer signups',
+      action: 'View all',
+      onAction: () => Get.toNamed(AtlasRoutes.customers),
+      child: Obx(() {
+        final signups = controller.recentSignups;
+        if (signups.isEmpty) return const _EmptyState(message: 'No customers yet.');
+        return Column(
+          children: signups.map((o) => _OrgRow(org: o)).toList(),
+        );
+      }),
     );
   }
 }
@@ -275,43 +249,40 @@ class _OrgRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final df = DateFormat('MMM d');
     return InkWell(
-      onTap: () {
-        // Open the customer detail view.
-        Get.toNamed(AtlasRoutes.customers);
-      },
+      onTap: () => Get.toNamed(AtlasRoutes.customers),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AtlasSpace.xl, vertical: AtlasSpace.md),
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AtlasColors.cardBorder)),
+          border: Border(top: BorderSide(color: AtlasColors.cardBorderSubtle)),
         ),
         child: Row(
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: AtlasColors.accentSoft,
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(AtlasRadius.sm),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.business, size: 14, color: AtlasColors.accent),
+              child: const Icon(Icons.business_rounded,
+                  size: 14, color: AtlasColors.accent),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AtlasSpace.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     org.name,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    style: AtlasText.body.copyWith(
+                        fontWeight: FontWeight.w600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     org.industry ?? org.email ?? '—',
-                    style: const TextStyle(
-                      color: AtlasColors.textSecondary,
-                      fontSize: 11,
-                    ),
+                    style: AtlasText.tiny,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -319,11 +290,7 @@ class _OrgRow extends StatelessWidget {
             ),
             Text(
               org.createdAt != null ? df.format(org.createdAt!) : '—',
-              style: const TextStyle(
-                color: AtlasColors.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AtlasText.tiny.copyWith(fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -332,53 +299,53 @@ class _OrgRow extends StatelessWidget {
   }
 }
 
+// ─── URGENT TICKETS ─────────────────────────────────────────────────────
+
 class _UrgentTicketsCard extends StatelessWidget {
   final HomeController controller;
   const _UrgentTicketsCard({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AtlasColors.cardBg,
-        border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CardHeader(
-            title: 'Open tickets needing attention',
-            actionLabel: 'View queue',
-            onAction: () => Get.toNamed(AtlasRoutes.tickets),
-          ),
-          Obx(() {
-            final tickets = controller.urgentOpenTickets;
-            if (tickets.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(28),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle_outline,
-                          color: AtlasColors.success, size: 32),
-                      SizedBox(height: 8),
-                      Text(
-                        'No open tickets — you\'re caught up.',
-                        style: TextStyle(color: AtlasColors.textSecondary, fontSize: 13),
-                      ),
-                    ],
+    return _DashboardCard(
+      title: 'Open tickets',
+      action: 'View queue',
+      onAction: () => Get.toNamed(AtlasRoutes.tickets),
+      child: Obx(() {
+        final tickets = controller.urgentOpenTickets;
+        if (tickets.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(
+                horizontal: AtlasSpace.xl, vertical: AtlasSpace.xxxl),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_rounded,
+                      color: AtlasColors.success, size: 28),
+                  SizedBox(height: AtlasSpace.sm),
+                  Text(
+                    'You\'re all caught up',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AtlasColors.textPrimary,
+                    ),
                   ),
-                ),
-              );
-            }
-            return Column(
-              children: tickets.map((t) => _TicketRow(ticket: t)).toList(),
-            );
-          }),
-        ],
-      ),
+                  SizedBox(height: 2),
+                  Text(
+                    'No open tickets right now.',
+                    style: AtlasText.tiny,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return Column(
+          children: tickets.map((t) => _TicketRow(ticket: t)).toList(),
+        );
+      }),
     );
   }
 }
@@ -392,9 +359,10 @@ class _TicketRow extends StatelessWidget {
     return InkWell(
       onTap: () => Get.toNamed(AtlasRoutes.ticketDetail, arguments: ticket.id),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AtlasSpace.xl, vertical: AtlasSpace.md),
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AtlasColors.cardBorder)),
+          border: Border(top: BorderSide(color: AtlasColors.cardBorderSubtle)),
         ),
         child: Row(
           children: [
@@ -406,36 +374,28 @@ class _TicketRow extends StatelessWidget {
                     children: [
                       Text(
                         ticket.ticketNumber,
-                        style: const TextStyle(
-                          color: AtlasColors.textMuted,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.4,
-                        ),
+                        style: AtlasText.tiny.copyWith(
+                            fontWeight: FontWeight.w700, letterSpacing: 0.4),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AtlasSpace.sm),
                       PriorityPill(priority: ticket.priority),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     ticket.subject,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    style: AtlasText.body.copyWith(
+                        fontWeight: FontWeight.w600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    ticket.orgName,
-                    style: const TextStyle(
-                      color: AtlasColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(ticket.orgName,
+                      style: AtlasText.tiny, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, size: 16, color: AtlasColors.textMuted),
+            const SizedBox(width: AtlasSpace.sm),
+            const Icon(Icons.chevron_right,
+                size: 16, color: AtlasColors.textMuted),
           ],
         ),
       ),
@@ -443,39 +403,75 @@ class _TicketRow extends StatelessWidget {
   }
 }
 
-class _CardHeader extends StatelessWidget {
+// ─── SHARED ─────────────────────────────────────────────────────────────
+
+class _DashboardCard extends StatelessWidget {
   final String title;
-  final String actionLabel;
-  final VoidCallback onAction;
-  const _CardHeader({
+  final String? action;
+  final VoidCallback? onAction;
+  final Widget child;
+
+  const _DashboardCard({
     required this.title,
-    required this.actionLabel,
-    required this.onAction,
+    required this.child,
+    this.action,
+    this.onAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
-      child: Row(
+    return Container(
+      decoration: BoxDecoration(
+        color: AtlasColors.cardBg,
+        border: Border.all(color: AtlasColors.cardBorder),
+        borderRadius: BorderRadius.circular(AtlasRadius.lg),
+        boxShadow: AtlasElevation.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: AtlasColors.textPrimary,
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AtlasSpace.xl, AtlasSpace.lg,
+                AtlasSpace.md, AtlasSpace.md),
+            child: Row(
+              children: [
+                Expanded(child: Text(title, style: AtlasText.h3)),
+                if (action != null && onAction != null)
+                  TextButton(
+                    onPressed: onAction,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AtlasSpace.sm, vertical: AtlasSpace.xs),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(action!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AtlasColors.accent,
+                        )),
+                  ),
+              ],
             ),
           ),
-          TextButton(
-            onPressed: onAction,
-            style: TextButton.styleFrom(foregroundColor: AtlasColors.accent),
-            child: Text(actionLabel),
-          ),
+          child,
         ],
       ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final String message;
+  const _EmptyState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AtlasSpace.xl, vertical: AtlasSpace.xxl),
+      child: Center(child: Text(message, style: AtlasText.smallMuted)),
     );
   }
 }

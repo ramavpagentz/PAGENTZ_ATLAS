@@ -3,39 +3,58 @@ import 'package:get/get.dart';
 import '../core/models/staff_user_model.dart';
 import '../modules/auth/controller/auth_controller.dart';
 import '../theme/atlas_colors.dart';
+import '../theme/atlas_text.dart';
 import '../utils/routes.dart';
 
-/// Main authenticated app layout: dark sidebar + top bar + content area.
+/// Refined Atlas v3 app layout — premium dark sidebar + light content area.
 class AppShell extends StatelessWidget {
   final Widget child;
   final String currentRoute;
   final String pageTitle;
+  final String? pageSubtitle;
+  final List<Widget>? actions;
 
   const AppShell({
     super.key,
     required this.child,
     required this.currentRoute,
     required this.pageTitle,
+    this.pageSubtitle,
+    this.actions,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width >= 900;
+    final isWide = MediaQuery.of(context).size.width >= 960;
 
     return Scaffold(
       backgroundColor: AtlasColors.pageBg,
-      drawer: isWide ? null : Drawer(child: _Sidebar(currentRoute: currentRoute)),
+      drawer:
+          isWide ? null : Drawer(child: _Sidebar(currentRoute: currentRoute)),
       body: Row(
         children: [
           if (isWide) _Sidebar(currentRoute: currentRoute),
           Expanded(
             child: Column(
               children: [
-                _TopBar(pageTitle: pageTitle, isWide: isWide),
+                _TopBar(
+                  pageTitle: pageTitle,
+                  pageSubtitle: pageSubtitle,
+                  isWide: isWide,
+                  actions: actions,
+                ),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: child,
+                    padding: const EdgeInsets.fromLTRB(
+                      AtlasSpace.xxl,
+                      AtlasSpace.xl,
+                      AtlasSpace.xxl,
+                      AtlasSpace.xxxl,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1280),
+                      child: child,
+                    ),
                   ),
                 ),
               ],
@@ -46,6 +65,8 @@ class AppShell extends StatelessWidget {
     );
   }
 }
+
+// ─── SIDEBAR ────────────────────────────────────────────────────────────
 
 class _Sidebar extends StatelessWidget {
   final String currentRoute;
@@ -54,182 +75,240 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 240,
-      color: AtlasColors.sidebarBg,
+      width: 248,
+      decoration: const BoxDecoration(
+        color: AtlasColors.sidebarBg,
+        border: Border(
+            right: BorderSide(color: AtlasColors.sidebarBorderSubtle)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Logo
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AtlasColors.accent, AtlasColors.accentHover],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
+          _SidebarBrand(),
+          const SizedBox(height: AtlasSpace.lg),
+
+          // Main navigation
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: AtlasSpace.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SidebarSection('Workspace'),
+                  _NavItem(
+                    icon: Icons.dashboard_outlined,
+                    activeIcon: Icons.dashboard_rounded,
+                    label: 'Home',
+                    route: AtlasRoutes.home,
+                    currentRoute: currentRoute,
                   ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'PA',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                    ),
+                  _NavItem(
+                    icon: Icons.business_outlined,
+                    activeIcon: Icons.business_rounded,
+                    label: 'Customers',
+                    route: AtlasRoutes.customers,
+                    currentRoute: currentRoute,
                   ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'Atlas',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
+                  _NavItem(
+                    icon: Icons.inbox_outlined,
+                    activeIcon: Icons.inbox_rounded,
+                    label: 'Tickets',
+                    route: AtlasRoutes.tickets,
+                    currentRoute: currentRoute,
                   ),
-                ),
-              ],
+                  const SizedBox(height: AtlasSpace.lg),
+                  Obx(() {
+                    final me =
+                        Get.find<AuthController>().currentStaff.value;
+                    final canSee = me != null &&
+                        me.role.isAtLeast(StaffRole.admin);
+                    if (!canSee) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SidebarSection('Administration'),
+                        _NavItem(
+                          icon: Icons.people_outline,
+                          activeIcon: Icons.people_rounded,
+                          label: 'Staff',
+                          route: AtlasRoutes.staff,
+                          currentRoute: currentRoute,
+                        ),
+                        _NavItem(
+                          icon: Icons.history_outlined,
+                          activeIcon: Icons.history_rounded,
+                          label: 'Audit Log',
+                          route: AtlasRoutes.audit,
+                          currentRoute: currentRoute,
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
 
-          // Nav items
-          _NavItem(
-            icon: Icons.dashboard_outlined,
-            label: 'Home',
-            route: AtlasRoutes.home,
-            currentRoute: currentRoute,
-          ),
-          _NavItem(
-            icon: Icons.business_outlined,
-            label: 'Customers',
-            route: AtlasRoutes.customers,
-            currentRoute: currentRoute,
-          ),
-          _NavItem(
-            icon: Icons.support_agent_outlined,
-            label: 'Tickets',
-            route: AtlasRoutes.tickets,
-            currentRoute: currentRoute,
-          ),
-          // Staff management: admin/owner only
-          Obx(() {
-            final staff = Get.find<AuthController>().currentStaff.value;
-            final canSee = staff != null && staff.role.isAtLeast(StaffRole.admin);
-            return _NavItem(
-              icon: Icons.people_outline,
-              label: 'Staff',
-              route: AtlasRoutes.staff,
-              currentRoute: currentRoute,
-              disabled: !canSee,
-            );
-          }),
-          // Audit log: only admin/owner staff can access it
-          Obx(() {
-            final staff = Get.find<AuthController>().currentStaff.value;
-            final canSee = staff != null && staff.role.isAtLeast(StaffRole.admin);
-            return _NavItem(
-              icon: Icons.receipt_long_outlined,
-              label: 'Audit Log',
-              route: AtlasRoutes.audit,
-              currentRoute: currentRoute,
-              disabled: !canSee,
-            );
-          }),
-
-          const Spacer(),
-
-          // User card + logout
-          _UserCard(),
+          const _SidebarUserCard(),
         ],
       ),
     );
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String route;
-  final String currentRoute;
-  final bool disabled;
+class _SidebarBrand extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AtlasSpace.xl, AtlasSpace.xl, AtlasSpace.xl, AtlasSpace.xs),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AtlasColors.accent, AtlasColors.accentActive],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(AtlasRadius.md),
+              boxShadow: [
+                BoxShadow(
+                  color: AtlasColors.accent.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.shield_outlined,
+                color: Colors.white, size: 17),
+          ),
+          const SizedBox(width: AtlasSpace.sm + 2),
+          const Text('Atlas', style: AtlasText.sidebarBrand),
+          const SizedBox(width: AtlasSpace.xs),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AtlasSpace.xs + 1, vertical: 1),
+            decoration: BoxDecoration(
+              color: AtlasColors.sidebarHover,
+              borderRadius: BorderRadius.circular(AtlasRadius.xs),
+            ),
+            child: const Text(
+              'BETA',
+              style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+                color: AtlasColors.sidebarTextMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.route,
-    required this.currentRoute,
-    this.disabled = false,
-  });
+class _SidebarSection extends StatelessWidget {
+  final String label;
+  const _SidebarSection(this.label);
 
   @override
   Widget build(BuildContext context) {
-    final isActive = currentRoute == route ||
-        (route == AtlasRoutes.customers &&
-            currentRoute == AtlasRoutes.customerDetail);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AtlasSpace.sm, AtlasSpace.md, AtlasSpace.sm, AtlasSpace.xs),
+      child: Text(label.toUpperCase(), style: AtlasText.sidebarSection),
+    );
+  }
+}
 
-    return InkWell(
-      onTap: disabled || isActive ? null : () => Get.offAllNamed(route),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isActive ? AtlasColors.accent.withValues(alpha: 0.18) : null,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: disabled
-                  ? AtlasColors.sidebarTextMuted.withValues(alpha: 0.5)
-                  : isActive
-                      ? AtlasColors.accent
-                      : AtlasColors.sidebarTextMuted,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: disabled
-                      ? AtlasColors.sidebarTextMuted.withValues(alpha: 0.5)
-                      : isActive
-                          ? Colors.white
-                          : AtlasColors.sidebarText,
-                  fontSize: 13,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                ),
+class _NavItem extends StatefulWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final String route;
+  final String currentRoute;
+
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.route,
+    required this.currentRoute,
+  });
+
+  @override
+  State<_NavItem> createState() => _NavItemState();
+}
+
+class _NavItemState extends State<_NavItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = widget.currentRoute == widget.route ||
+        (widget.route == AtlasRoutes.customers &&
+            widget.currentRoute == AtlasRoutes.customerDetail) ||
+        (widget.route == AtlasRoutes.tickets &&
+            widget.currentRoute == AtlasRoutes.ticketDetail);
+
+    final bg = isActive
+        ? AtlasColors.sidebarHover
+        : _hover
+            ? AtlasColors.sidebarHover.withValues(alpha: 0.5)
+            : Colors.transparent;
+    final fg = isActive ? AtlasColors.sidebarText : AtlasColors.sidebarTextMuted;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: isActive ? null : () => Get.offAllNamed(widget.route),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(vertical: 1),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AtlasSpace.sm + 2, vertical: AtlasSpace.sm),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(AtlasRadius.sm),
+          ),
+          child: Row(
+            children: [
+              Icon(isActive ? widget.activeIcon : widget.icon,
+                  size: 17, color: fg),
+              const SizedBox(width: AtlasSpace.md - 2),
+              Expanded(
+                child: Text(widget.label,
+                    style:
+                        isActive ? AtlasText.sidebarItemActive : AtlasText.sidebarItem),
               ),
-            ),
-            if (disabled)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AtlasColors.sidebarTextMuted.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'soon',
-                  style: TextStyle(
-                    color: AtlasColors.sidebarTextMuted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
+              if (isActive)
+                Container(
+                  width: 4,
+                  height: 4,
+                  decoration: const BoxDecoration(
+                    color: AtlasColors.accent,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _UserCard extends StatelessWidget {
+class _SidebarUserCard extends StatelessWidget {
+  const _SidebarUserCard();
+
   @override
   Widget build(BuildContext context) {
     final auth = Get.find<AuthController>();
@@ -238,118 +317,179 @@ class _UserCard extends StatelessWidget {
       if (staff == null) return const SizedBox.shrink();
 
       return Container(
-        margin: const EdgeInsets.all(14),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.all(AtlasSpace.md),
+        padding: const EdgeInsets.all(AtlasSpace.sm + 2),
         decoration: BoxDecoration(
-          color: AtlasColors.sidebarBgHover,
-          borderRadius: BorderRadius.circular(10),
+          color: AtlasColors.sidebarBgElevated,
+          borderRadius: BorderRadius.circular(AtlasRadius.lg),
+          border: Border.all(color: AtlasColors.sidebarBorder),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AtlasColors.accent,
-                  child: Text(
-                    (staff.displayName.isNotEmpty
-                            ? staff.displayName[0]
-                            : staff.email[0])
-                        .toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        staff.displayName.isNotEmpty
-                            ? staff.displayName
-                            : staff.email,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        staff.role.label,
-                        style: const TextStyle(
-                          color: AtlasColors.sidebarTextMuted,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () async {
-                  await auth.signOut();
-                  Get.offAllNamed(AtlasRoutes.login);
-                },
-                icon: const Icon(Icons.logout, size: 14, color: AtlasColors.sidebarTextMuted),
-                label: const Text(
-                  'Sign out',
-                  style: TextStyle(
-                    color: AtlasColors.sidebarTextMuted,
-                    fontSize: 12,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                color: AtlasColors.accent,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                _initials(staff.displayName, staff.email),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
                 ),
               ),
+            ),
+            const SizedBox(width: AtlasSpace.sm + 2),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    staff.displayName.isNotEmpty
+                        ? staff.displayName
+                        : staff.email.split('@').first,
+                    style: const TextStyle(
+                      color: AtlasColors.sidebarText,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    staff.role.label,
+                    style: const TextStyle(
+                      color: AtlasColors.sidebarTextSubtle,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _SidebarIconButton(
+              icon: Icons.logout,
+              tooltip: 'Sign out',
+              onTap: () async {
+                await auth.signOut();
+                Get.offAllNamed(AtlasRoutes.login);
+              },
             ),
           ],
         ),
       );
     });
   }
+
+  String _initials(String displayName, String email) {
+    if (displayName.isNotEmpty) {
+      final parts = displayName.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 2) {
+        return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+      }
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return email.substring(0, 1).toUpperCase();
+  }
 }
+
+class _SidebarIconButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _SidebarIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  State<_SidebarIconButton> createState() => _SidebarIconButtonState();
+}
+
+class _SidebarIconButtonState extends State<_SidebarIconButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            padding: const EdgeInsets.all(AtlasSpace.xs + 2),
+            decoration: BoxDecoration(
+              color: _hover ? AtlasColors.sidebarHover : Colors.transparent,
+              borderRadius: BorderRadius.circular(AtlasRadius.xs + 1),
+            ),
+            child: Icon(widget.icon, size: 15, color: AtlasColors.sidebarTextMuted),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── TOP BAR ────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
   final String pageTitle;
+  final String? pageSubtitle;
   final bool isWide;
-  const _TopBar({required this.pageTitle, required this.isWide});
+  final List<Widget>? actions;
+
+  const _TopBar({
+    required this.pageTitle,
+    required this.pageSubtitle,
+    required this.isWide,
+    this.actions,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: const BoxDecoration(
         color: AtlasColors.cardBg,
-        border: Border(bottom: BorderSide(color: AtlasColors.cardBorder)),
+        border: Border(
+          bottom: BorderSide(color: AtlasColors.divider),
+        ),
       ),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AtlasSpace.xxl, vertical: AtlasSpace.lg),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (!isWide)
-            IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(context).openDrawer(),
+            Padding(
+              padding: const EdgeInsets.only(right: AtlasSpace.sm),
+              child: IconButton(
+                icon: const Icon(Icons.menu, size: 20),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
             ),
-          Text(
-            pageTitle,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AtlasColors.textPrimary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(pageTitle, style: AtlasText.h2),
+                if (pageSubtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(pageSubtitle!, style: AtlasText.smallMuted),
+                ],
+              ],
             ),
           ),
-          const Spacer(),
+          if (actions != null) ...actions!,
         ],
       ),
     );
