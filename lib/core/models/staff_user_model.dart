@@ -36,6 +36,7 @@ class StaffUser {
   final String? lastLoginIp;
   final bool disabled;
   final DateTime? staffJoinedAt;
+  final DateTime? passwordChangedAt;
 
   const StaffUser({
     required this.uid,
@@ -48,6 +49,7 @@ class StaffUser {
     this.lastLoginIp,
     this.disabled = false,
     this.staffJoinedAt,
+    this.passwordChangedAt,
   });
 
   factory StaffUser.fromFirestore(DocumentSnapshot doc) {
@@ -63,9 +65,19 @@ class StaffUser {
       lastLoginIp: data['lastLoginIp'] as String?,
       disabled: (data['disabled'] ?? false) as bool,
       staffJoinedAt: (data['staffJoinedAt'] as Timestamp?)?.toDate(),
+      passwordChangedAt:
+          (data['passwordChangedAt'] as Timestamp?)?.toDate() ??
+              (data['staffJoinedAt'] as Timestamp?)?.toDate(),
     );
   }
 
   /// True if this user can log into Atlas at all.
   bool get canAccessAtlas => isAtlas && !disabled;
+
+  /// True if password is older than the rotation threshold (defaults to 90d).
+  bool passwordExpired({Duration maxAge = const Duration(days: 90)}) {
+    final lastChanged = passwordChangedAt;
+    if (lastChanged == null) return false;
+    return DateTime.now().difference(lastChanged) > maxAge;
+  }
 }

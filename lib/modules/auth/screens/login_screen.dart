@@ -283,7 +283,15 @@ class _LoginForm extends StatelessWidget {
                       : () async {
                           if (!formKey.currentState!.validate()) return;
                           final ok = await controller.signInWithEmail();
-                          if (ok) Get.offAllNamed(AtlasRoutes.home);
+                          if (!ok) return;
+                          // Password rotation check (Atlas requires rotation
+                          // every 90 days; see AppConfig.passwordRotationMaxAge)
+                          final staff = controller.currentStaff.value;
+                          if (staff != null && staff.passwordExpired()) {
+                            Get.offAllNamed(AtlasRoutes.passwordRotation);
+                          } else {
+                            Get.offAllNamed(AtlasRoutes.home);
+                          }
                         },
                   child: controller.isLoading.value
                       ? const SizedBox(

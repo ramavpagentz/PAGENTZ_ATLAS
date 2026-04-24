@@ -23,11 +23,15 @@ class _SplashScreenState extends State<SplashScreen> {
     final auth = Get.find<AuthController>();
     final staff = await auth.tryRestoreSession();
     if (!mounted) return;
-    if (staff != null) {
-      Get.offAllNamed(AtlasRoutes.home);
-    } else {
+    if (staff == null) {
       Get.offAllNamed(AtlasRoutes.login);
+      return;
     }
+    if (staff.passwordExpired()) {
+      Get.offAllNamed(AtlasRoutes.passwordRotation);
+      return;
+    }
+    Get.offAllNamed(AtlasRoutes.home);
   }
 
   @override

@@ -7,6 +7,8 @@ import '../../../core/services/ticket_service.dart';
 import '../../../modules/auth/controller/auth_controller.dart';
 import '../../customers/controller/customer_controller.dart';
 import '../../impersonation/widgets/start_impersonation_modal.dart';
+import '../widgets/canned_response_picker.dart';
+import '../widgets/sla_indicator.dart';
 import '../../../theme/atlas_colors.dart';
 import '../../../utils/routes.dart';
 import '../../../widgets/app_shell.dart';
@@ -135,6 +137,8 @@ class _TicketBodyState extends State<_TicketBody> {
                   StatusPill(status: t.status),
                   const SizedBox(width: 6),
                   PriorityPill(priority: t.priority),
+                  const SizedBox(width: 6),
+                  SlaBadge(ticket: t),
                 ],
               ),
               const SizedBox(height: 8),
@@ -474,6 +478,18 @@ class _ReplyComposer extends StatelessWidget {
                       ? AtlasColors.warning
                       : AtlasColors.textSecondary,
                 ),
+              ),
+              const SizedBox(width: AtlasSpace.md),
+              CannedResponsePicker(
+                onPicked: (body) {
+                  // Insert/append template body at caret
+                  final current = controller.text;
+                  final insertion = current.isEmpty ? body : '$current\n\n$body';
+                  controller.text = insertion;
+                  controller.selection = TextSelection.fromPosition(
+                    TextPosition(offset: controller.text.length),
+                  );
+                },
               ),
               const Spacer(),
               ElevatedButton.icon(

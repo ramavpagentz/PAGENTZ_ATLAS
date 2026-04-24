@@ -60,6 +60,25 @@ exports.atlasImpersonate = onCall(async (request) => {
     );
   }
 
+  // ─── Rate limit: max 20 impersonations per staff per 24h rolling window ───
+  const RATE_LIMIT = 20;
+  const windowMs = 24 * 60 * 60 * 1000;
+  const windowStart = new Date(Date.now() - windowMs);
+  const recent = await db
+    .collection('impersonation_sessions')
+    .where('staffUid', '==', auth.uid)
+    .where('startedAt', '>=', windowStart)
+    .count()
+    .get();
+  const count = recent.data().count || 0;
+  if (count >= RATE_LIMIT) {
+    throw new HttpsError(
+      'resource-exhausted',
+      `Rate limit: max ${RATE_LIMIT} impersonation sessions per 24 hours. ` +
+        `If you need more, contact an admin.`,
+    );
+  }
+
   // ─── 2. Verify target ───
   const orgSnap = await db.collection('organizations').doc(targetOrgId).get();
   if (!orgSnap.exists) {

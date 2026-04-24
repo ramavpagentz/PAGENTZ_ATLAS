@@ -4,6 +4,8 @@ import 'core/config/app_config.dart';
 import 'core/services/session_service.dart';
 import 'modules/auth/controller/auth_controller.dart';
 import 'modules/auth/screens/login_screen.dart';
+import 'modules/auth/screens/mfa_enrollment_screen.dart';
+import 'modules/auth/screens/password_rotation_screen.dart';
 import 'modules/auth/screens/splash_screen.dart';
 import 'modules/audit/screens/audit_log_screen.dart';
 import 'modules/customers/screens/customer_detail_screen.dart';
@@ -52,6 +54,12 @@ class AtlasApp extends StatelessWidget {
       getPages: [
         GetPage(name: AtlasRoutes.splash, page: () => const SplashScreen()),
         GetPage(name: AtlasRoutes.login, page: () => LoginScreen()),
+        GetPage(
+            name: AtlasRoutes.passwordRotation,
+            page: () => const PasswordRotationScreen()),
+        GetPage(
+            name: AtlasRoutes.mfaEnrollment,
+            page: () => const MfaEnrollmentScreen()),
         GetPage(name: AtlasRoutes.home, page: () => HomeScreen()),
         GetPage(
           name: AtlasRoutes.customers,

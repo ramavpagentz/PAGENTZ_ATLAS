@@ -35,6 +35,9 @@ class AppConfig {
   /// Hard session timeout — re-auth after this long.
   static const Duration sessionTimeout = Duration(hours: 8);
 
+  /// Force password rotation after this long.
+  static const Duration passwordRotationMaxAge = Duration(days: 90);
+
   static String get envLabel {
     switch (env) {
       case 'prod':

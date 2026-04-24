@@ -6,6 +6,7 @@ import '../../../theme/atlas_colors.dart';
 import '../../../utils/routes.dart';
 import '../../../widgets/app_shell.dart';
 import '../controller/ticket_controller.dart';
+import '../widgets/sla_indicator.dart';
 import '../widgets/ticket_chips.dart';
 
 class TicketQueueScreen extends StatelessWidget {
@@ -292,11 +293,19 @@ class _TicketTable extends StatelessWidget {
                   ),
                 )),
                 DataCell(SizedBox(
-                  width: 280,
-                  child: Text(
-                    t.subject,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis,
+                  width: 300,
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          t.subject,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: AtlasSpace.sm),
+                      SlaBadge(ticket: t, compact: true),
+                    ],
                   ),
                 )),
                 DataCell(Text(
