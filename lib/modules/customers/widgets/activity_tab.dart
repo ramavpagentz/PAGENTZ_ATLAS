@@ -57,6 +57,9 @@ class _ActivityTabState extends State<ActivityTab> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
+        if (snap.hasError) {
+          return _ErrorBox(message: snap.error.toString());
+        }
         final logs = snap.data ?? const [];
         final modules = {for (final l in logs) l.module}
           ..removeWhere((s) => s.isEmpty);
@@ -202,6 +205,32 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final filters = <Widget>[
+      _PopupFilter<_TimeWindow>(
+        label: window.label,
+        current: window,
+        options: _TimeWindow.values,
+        optionLabel: (w) => w.label,
+        onSelected: onWindow,
+      ),
+      if (categories.isNotEmpty)
+        _PopupFilter<String?>(
+          label: activeCategory ?? 'All categories',
+          current: activeCategory,
+          options: <String?>[null, ...categories],
+          optionLabel: (c) => c ?? 'All categories',
+          onSelected: onCategory,
+        ),
+      if (modules.isNotEmpty)
+        _PopupFilter<String?>(
+          label: activeModule ?? 'All modules',
+          current: activeModule,
+          options: <String?>[null, ...modules],
+          optionLabel: (m) => m ?? 'All modules',
+          onSelected: onModule,
+        ),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -209,35 +238,18 @@ class _FilterBar extends StatelessWidget {
         border: Border.all(color: AtlasColors.cardBorder),
         borderRadius: BorderRadius.circular(AtlasRadius.md),
       ),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 6,
-        runSpacing: 6,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _PopupFilter<_TimeWindow>(
-            label: window.label,
-            current: window,
-            options: _TimeWindow.values,
-            optionLabel: (w) => w.label,
-            onSelected: onWindow,
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
+              children: filters,
+            ),
           ),
-          if (categories.isNotEmpty)
-            _PopupFilter<String?>(
-              label: activeCategory ?? 'All categories',
-              current: activeCategory,
-              options: <String?>[null, ...categories],
-              optionLabel: (c) => c ?? 'All categories',
-              onSelected: onCategory,
-            ),
-          if (modules.isNotEmpty)
-            _PopupFilter<String?>(
-              label: activeModule ?? 'All modules',
-              current: activeModule,
-              options: <String?>[null, ...modules],
-              optionLabel: (m) => m ?? 'All modules',
-              onSelected: onModule,
-            ),
-          const Spacer(),
+          const SizedBox(width: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
@@ -577,6 +589,39 @@ Widget _kv(String label, String value, {bool mono = false}) {
       ],
     ),
   );
+}
+
+class _ErrorBox extends StatelessWidget {
+  final String message;
+  const _ErrorBox({required this.message});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AtlasColors.dangerSoft,
+        border: Border.all(color: AtlasColors.danger),
+        borderRadius: BorderRadius.circular(AtlasRadius.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline,
+              size: 18, color: AtlasColors.danger),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Failed to load activity: $message',
+              style: const TextStyle(
+                color: AtlasColors.danger,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Empty extends StatelessWidget {
