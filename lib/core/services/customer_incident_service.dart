@@ -49,6 +49,10 @@ class CustomerIncidentService {
 
   /// Aggregated counts (open / acked / resolved) for the last `windowDays`.
   /// Used by the Health tab and the Pagers tab badge.
+  ///
+  /// Explicit `orderBy('createdAt', descending: true)` so the query reuses
+  /// the same `(orgId asc, createdAt desc)` composite index that the
+  /// `watchForOrg` stream uses — no second index direction needed.
   Future<Map<String, int>> countsByStatus({
     required String orgId,
     int windowDays = 30,
@@ -58,6 +62,7 @@ class CustomerIncidentService {
         .collection(_collection)
         .where('orgId', isEqualTo: orgId)
         .where('createdAt', isGreaterThan: Timestamp.fromDate(since))
+        .orderBy('createdAt', descending: true)
         .get();
 
     final counts = <String, int>{'open': 0, 'ack': 0, 'resolved': 0};

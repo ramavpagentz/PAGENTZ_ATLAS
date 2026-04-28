@@ -88,6 +88,7 @@ Future<_NotifSnapshot> _build(String orgId) async {
       .collection('inbound_emails')
       .where('orgId', isEqualTo: orgId)
       .where('createdAt', isGreaterThan: Timestamp.fromDate(since24h))
+      .orderBy('createdAt', descending: true)
       .get();
   final incidents7dCountFuture = CustomerIncidentService.instance
       .countsByStatus(orgId: orgId, windowDays: 7);
@@ -139,6 +140,7 @@ Future<_NotifSnapshot> _build(String orgId) async {
       .collection('inbound_emails')
       .where('orgId', isEqualTo: orgId)
       .where('createdAt', isGreaterThan: Timestamp.fromDate(since7d))
+      .orderBy('createdAt', descending: true)
       .get();
   final orgIncident7dIds = incs7dDocs.docs.map((d) => d.id).toSet();
 
