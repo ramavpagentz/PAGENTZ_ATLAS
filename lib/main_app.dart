@@ -10,6 +10,7 @@ import 'modules/auth/screens/splash_screen.dart';
 import 'modules/audit/screens/audit_log_screen.dart';
 import 'modules/customers/screens/customer_detail_screen.dart';
 import 'modules/customers/screens/customer_directory_screen.dart';
+import 'modules/customers/screens/customer_incident_detail_screen.dart';
 import 'modules/home/screens/home_screen.dart';
 import 'modules/staff/screens/staff_management_screen.dart';
 import 'modules/tickets/screens/ticket_detail_screen.dart';
@@ -68,6 +69,10 @@ class AtlasApp extends StatelessWidget {
         GetPage(
           name: AtlasRoutes.customerDetail,
           page: () => const CustomerDetailScreen(),
+        ),
+        GetPage(
+          name: AtlasRoutes.customerIncidentDetail,
+          page: () => const CustomerIncidentDetailScreen(),
         ),
         GetPage(name: AtlasRoutes.tickets, page: () => TicketQueueScreen()),
         GetPage(name: AtlasRoutes.ticketDetail, page: () => const TicketDetailScreen()),

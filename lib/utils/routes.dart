@@ -7,6 +7,7 @@ class AtlasRoutes {
   static const home = '/home';
   static const customers = '/customers';
   static const customerDetail = '/customers/detail';
+  static const customerIncidentDetail = '/customers/incident';
   static const tickets = '/tickets';
   static const ticketDetail = '/tickets/detail';
   static const staff = '/staff';

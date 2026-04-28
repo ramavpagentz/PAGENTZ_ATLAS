@@ -7,18 +7,27 @@ import '../../../theme/atlas_colors.dart';
 import '../../../theme/atlas_text.dart';
 import '../../../utils/routes.dart';
 import '../../../widgets/app_shell.dart';
-import '../../../widgets/pii_field.dart';
 import '../../../core/models/staff_user_model.dart';
-import '../../../core/models/support_ticket_model.dart';
 import '../../../core/services/customer_admin_service.dart';
-import '../../../core/services/ticket_service.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../impersonation/widgets/start_impersonation_modal.dart';
 import '../../tickets/widgets/create_ticket_dialog.dart';
-import '../../tickets/widgets/ticket_chips.dart';
 import '../controller/customer_controller.dart';
-import '../widgets/activity_timeline_widget.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../core/services/audit_log_service.dart';
+import '../widgets/activity_tab.dart';
+import '../widgets/add_internal_note_dialog.dart';
 import '../widgets/admin_action_dialog.dart';
+import '../widgets/health_tab.dart';
+import '../widgets/integrations_tab.dart';
+import '../widgets/members_tab.dart';
+import '../widgets/org_alert_banner.dart';
+import '../widgets/overview_tab.dart' as overview;
+import '../widgets/pagers_tab.dart';
+import '../widgets/settings_tab.dart';
+import '../widgets/subscription_tab.dart' as cust_sub;
+import '../widgets/support_tab.dart';
 
 class CustomerDetailScreen extends StatelessWidget {
   const CustomerDetailScreen({super.key});
@@ -126,6 +135,9 @@ class _DetailBodyState extends State<_DetailBody> {
         ),
         const SizedBox(height: AtlasSpace.md),
 
+        // Alert banner (active P1 / unacked) — renders nothing when healthy.
+        OrgAlertBanner(orgId: org.id),
+
         // Header card
         _HeaderCard(org: org),
         const SizedBox(height: AtlasSpace.xl),
@@ -137,10 +149,14 @@ class _DetailBodyState extends State<_DetailBody> {
           final tabs = <String>[
             'Overview',
             'Members',
+            'Pagers',
+            'Health ⭐',
+            'Integrations',
             'Activity',
-            'Tickets',
+            'Support',
             'Subscription',
-            if (canSeeSettings) 'Settings',
+            'Settings',
+            if (canSeeSettings) 'Admin',
           ];
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,12 +169,16 @@ class _DetailBodyState extends State<_DetailBody> {
               const SizedBox(height: 16),
 
               // Tab content
-              if (_tab == 0) _OverviewTab(org: org),
-              if (_tab == 1) _MembersTab(orgId: org.id),
-              if (_tab == 2) _ActivityTab(orgId: org.id),
-              if (_tab == 3) _TicketsTab(org: org),
-              if (_tab == 4) _SubscriptionTab(org: org),
-              if (_tab == 5 && canSeeSettings) _SettingsTab(org: org),
+              if (_tab == 0) overview.OverviewTab(org: org),
+              if (_tab == 1) MembersTab(orgId: org.id),
+              if (_tab == 2) PagersTab(org: org),
+              if (_tab == 3) HealthTab(orgId: org.id),
+              if (_tab == 4) IntegrationsTab(orgId: org.id, orgName: org.name),
+              if (_tab == 5) ActivityTab(orgId: org.id, orgName: org.name),
+              if (_tab == 6) SupportTab(org: org),
+              if (_tab == 7) cust_sub.SubscriptionTab(org: org),
+              if (_tab == 8) SettingsTab(orgId: org.id),
+              if (_tab == 9 && canSeeSettings) _SettingsTab(org: org),
             ],
           );
         }),
@@ -217,10 +237,22 @@ class _HeaderCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(org.name, style: AtlasText.h2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(org.name, style: AtlasText.h2),
+                      const SizedBox(width: 10),
+                      _PlanPill(plan: org.plan),
+                      if (org.disabled) ...[
+                        const SizedBox(width: 6),
+                        const _DangerPill(label: 'DISABLED'),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                    org.industry ?? 'Organization',
+                    _headerSubtitle(org),
                     style: AtlasText.smallMuted,
                   ),
                 ],
@@ -229,12 +261,28 @@ class _HeaderCard extends StatelessWidget {
           ),
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: () => showCreateTicketDialog(context, org),
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('New ticket'),
               ),
+              OutlinedButton.icon(
+                onPressed: () => showAddInternalNoteDialog(
+                  context: context,
+                  orgId: org.id,
+                  orgName: org.name,
+                ),
+                icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
+                label: const Text('Add internal note'),
+              ),
+              if ((org.email ?? '').isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _startTeamsCall(org),
+                  icon: const Icon(Icons.videocam_outlined, size: 16),
+                  label: const Text('Start Teams call'),
+                ),
               ElevatedButton.icon(
                 onPressed: () => showStartImpersonationModal(context, org),
                 icon: const Icon(Icons.person_outline, size: 16),
@@ -246,6 +294,103 @@ class _HeaderCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _headerSubtitle(CustomerOrg org) {
+  final parts = <String>[];
+  if ((org.industry ?? '').isNotEmpty) parts.add(org.industry!);
+  if (org.memberCount > 0) {
+    parts.add('${org.memberCount} member${org.memberCount == 1 ? "" : "s"}');
+  }
+  if (org.createdAt != null) {
+    final fmt = DateFormat('MMM d, yyyy');
+    final age = _ageInMonths(org.createdAt!);
+    parts.add('Customer since ${fmt.format(org.createdAt!)}'
+        '${age.isEmpty ? "" : " ($age)"}');
+  }
+  return parts.isEmpty ? 'Organization' : parts.join(' · ');
+}
+
+String _ageInMonths(DateTime when) {
+  final now = DateTime.now();
+  final months = (now.year - when.year) * 12 + (now.month - when.month);
+  if (months < 1) return '< 1 month';
+  if (months < 12) return '$months months';
+  final years = months ~/ 12;
+  return years == 1 ? '1 year' : '$years years';
+}
+
+class _PlanPill extends StatelessWidget {
+  final String? plan;
+  const _PlanPill({required this.plan});
+  @override
+  Widget build(BuildContext context) {
+    final p = (plan ?? 'free').toLowerCase();
+    final (color, label) = switch (p) {
+      'premium' => (const Color(0xFF7C3AED), 'PREMIUM'),
+      'plus' => (AtlasColors.info, 'PLUS'),
+      'enterprise' => (const Color(0xFF7C3AED), 'ENTERPRISE'),
+      _ => (AtlasColors.textMuted, 'FREE'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AtlasRadius.round),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.7,
+        ),
+      ),
+    );
+  }
+}
+
+class _DangerPill extends StatelessWidget {
+  final String label;
+  const _DangerPill({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AtlasColors.dangerSoft,
+        borderRadius: BorderRadius.circular(AtlasRadius.round),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: AtlasColors.danger,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// Open a Microsoft Teams call to the customer's primary email. Audit-logs
+/// the action so we know which staff initiated which call.
+Future<void> _startTeamsCall(CustomerOrg org) async {
+  final email = (org.email ?? '').trim();
+  if (email.isEmpty) return;
+  AuditLogService.instance.log(
+    action: 'STARTED_TEAMS_CALL',
+    targetType: 'org',
+    targetId: org.id,
+    targetDisplay: org.name,
+    changes: {'targetEmail': email},
+  );
+  final url = Uri.parse(
+    'https://teams.microsoft.com/l/call/0/0?users=${Uri.encodeComponent(email)}',
+  );
+  await launchUrl(url, mode: LaunchMode.externalApplication);
 }
 
 // ─── TAB BAR ────────────────────────────────────────────────────────────
@@ -343,324 +488,25 @@ class _TabItemState extends State<_TabItem> {
 }
 
 // ─── OVERVIEW TAB ───────────────────────────────────────────────────────
-
-class _OverviewTab extends StatelessWidget {
-  final CustomerOrg org;
-  const _OverviewTab({required this.org});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final isWide = c.maxWidth > 700;
-      final overview = _SectionCard(
-        title: 'Overview',
-        children: [
-          _row('Organization', org.name),
-          _row('Industry', org.industry ?? '—'),
-          _row('Employees', org.numberOfEmployees?.toString() ?? '—'),
-          _row(
-            'Created',
-            org.createdAt != null
-                ? DateFormat('MMM d, yyyy').format(org.createdAt!)
-                : '—',
-          ),
-        ],
-      );
-      final contact = _SectionCard(
-        title: 'Contact',
-        children: [
-          _piiRow(
-            'Email',
-            PiiField(
-              value: org.email,
-              type: PiiType.email,
-              targetType: 'org',
-              targetId: org.id,
-              targetDisplay: org.name,
-            ),
-          ),
-          _row('Website', org.website ?? '—'),
-        ],
-      );
-      if (isWide) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: overview),
-            const SizedBox(width: 16),
-            Expanded(child: contact),
-          ],
-        );
-      }
-      return Column(children: [overview, const SizedBox(height: 16), contact]);
-    });
-  }
-}
+//
+// Overview content lives in `widgets/overview_tab.dart`. It adds 3 stat
+// tiles (members / open incidents / health score) and an auto-detected
+// onboarding-progress card on top of the existing org-detail/contact cards.
 
 // ─── MEMBERS TAB ────────────────────────────────────────────────────────
-
-class _MembersTab extends StatelessWidget {
-  final String orgId;
-  const _MembersTab({required this.orgId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AtlasColors.cardBg,
-        border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: CustomerService.instance.watchOrgMembers(orgId),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Padding(
-              padding: EdgeInsets.all(40),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          final members = snap.data ?? const [];
-          if (members.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(40),
-              child: Center(
-                child: Text(
-                  'No members in this organization.',
-                  style: TextStyle(color: AtlasColors.textMuted, fontSize: 13),
-                ),
-              ),
-            );
-          }
-          return Column(
-            children: members.map((m) {
-              final name = (m['displayName'] ?? m['fullName'] ?? m['email'] ?? '—').toString();
-              final email = (m['email'] ?? '').toString();
-              final role = (m['role'] ?? '').toString();
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: AtlasColors.cardBorder),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AtlasColors.accentSoft,
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          color: AtlasColors.accent,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                          Text(
-                            email,
-                            style: const TextStyle(
-                              color: AtlasColors.textSecondary,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (role.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          role.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: AtlasColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            }).toList(),
-          );
-        },
-      ),
-    );
-  }
-}
+//
+// The Members tab content lives in `widgets/members_tab.dart` (see
+// `MembersTab`). It surfaces status / role / last-active / invited-at.
 
 // ─── ACTIVITY TAB ───────────────────────────────────────────────────────
-
-class _ActivityTab extends StatelessWidget {
-  final String orgId;
-  const _ActivityTab({required this.orgId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AtlasColors.cardBg,
-        border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: ActivityTimelineWidget(orgId: orgId),
-    );
-  }
-}
+//
+// The Activity tab content lives in `widgets/activity_tab.dart`
+// (`ActivityTab`). It adds filter chips, CSV export, and a tap-to-open
+// detail dialog over the existing `ActivityTimelineWidget` data source.
 
 // ─── TICKETS TAB ────────────────────────────────────────────────────────
-
-class _TicketsTab extends StatelessWidget {
-  final CustomerOrg org;
-  const _TicketsTab({required this.org});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AtlasColors.cardBg,
-        border: Border.all(color: AtlasColors.cardBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Support tickets for this organization',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AtlasColors.textPrimary,
-                    ),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => showCreateTicketDialog(context, org),
-                  icon: const Icon(Icons.add, size: 14),
-                  label: const Text('New ticket'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          StreamBuilder<List<SupportTicket>>(
-            stream: TicketService.instance.watchForOrg(org.id),
-            builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final tickets = snap.data ?? const [];
-              if (tickets.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Icon(Icons.inbox_outlined, size: 32, color: AtlasColors.textMuted),
-                        SizedBox(height: 8),
-                        Text(
-                          'No tickets yet for this organization.',
-                          style: TextStyle(color: AtlasColors.textMuted, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-              return Column(
-                children: tickets.map((t) => _TicketRow(ticket: t)).toList(),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TicketRow extends StatelessWidget {
-  final SupportTicket ticket;
-  const _TicketRow({required this.ticket});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => Get.toNamed(AtlasRoutes.ticketDetail, arguments: ticket.id),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AtlasColors.cardBorder)),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 80,
-              child: Text(
-                ticket.ticketNumber,
-                style: const TextStyle(
-                  color: AtlasColors.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ticket.subject,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (ticket.assignedToName != null)
-                    Text(
-                      'Assigned to ${ticket.assignedToName}',
-                      style: const TextStyle(
-                        color: AtlasColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            PriorityPill(priority: ticket.priority),
-            const SizedBox(width: 6),
-            StatusPill(status: ticket.status),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, size: 16, color: AtlasColors.textMuted),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//
+// Tickets + Internal notes content lives in `widgets/support_tab.dart`.
 
 // ─── SETTINGS TAB (Admin+ only) ─────────────────────────────────────────
 
@@ -932,88 +778,12 @@ class _MemberPickerDialog extends StatelessWidget {
 }
 
 // ─── SUBSCRIPTION TAB ───────────────────────────────────────────────────
-
-class _SubscriptionTab extends StatelessWidget {
-  final CustomerOrg org;
-  const _SubscriptionTab({required this.org});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Subscription',
-      children: [
-        _row('Plan', (org.plan ?? 'free').toUpperCase()),
-        _row('Status', (org.planStatus ?? 'active').toUpperCase()),
-        _row('Members', '${org.memberCount > 0 ? org.memberCount : '—'}'),
-        const SizedBox(height: 14),
-        const Divider(height: 1, color: AtlasColors.cardBorder),
-        const SizedBox(height: 14),
-        const Text(
-          'Billing is managed externally via the PagentZ web dashboard (Stripe). '
-          'Changes here are read-only — to modify a subscription, use Stripe Dashboard.',
-          style: TextStyle(color: AtlasColors.textSecondary, fontSize: 12, height: 1.5),
-        ),
-      ],
-    );
-  }
-}
+//
+// Subscription tab content lives in `widgets/subscription_tab.dart`.
+// It reads the `subscription` map field on the org doc and links to the
+// Stripe dashboard.
 
 // ─── SHARED ─────────────────────────────────────────────────────────────
-
-Widget _row(String label, String value) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 140,
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: AtlasColors.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: AtlasColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _piiRow(String label, Widget child) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 140,
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: AtlasColors.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Expanded(child: child),
-      ],
-    ),
-  );
-}
 
 class _SectionCard extends StatelessWidget {
   final String title;
