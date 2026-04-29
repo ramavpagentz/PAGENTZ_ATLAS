@@ -166,14 +166,29 @@ class _RevealableSecretState extends State<RevealableSecret> {
     );
     if (reason == null || reason.isEmpty) return;
 
-    AuditLogService.instance.log(
-      action: 'REVEALED_API_KEY',
-      targetType: widget.targetType,
-      targetId: widget.targetId,
-      targetDisplay: widget.targetDisplay,
-      reason: reason,
-      changes: {'label': widget.label},
-    );
+    // Fail closed: if the audit row cannot be written, refuse to reveal
+    // the secret. The reveal-with-reason flow is a security guarantee,
+    // not best-effort logging.
+    try {
+      await AuditLogService.instance.logStrict(
+        action: 'REVEALED_API_KEY',
+        targetType: widget.targetType,
+        targetId: widget.targetId,
+        targetDisplay: widget.targetDisplay,
+        reason: reason,
+        changes: {'label': widget.label},
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Audit log unavailable — reveal blocked. ($e)'),
+          backgroundColor: AtlasColors.danger,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
     setState(() => _revealed = true);

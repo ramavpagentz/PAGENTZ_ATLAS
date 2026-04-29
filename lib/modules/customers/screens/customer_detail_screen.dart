@@ -745,7 +745,14 @@ class _MemberPickerDialog extends StatelessWidget {
                       final m = members[i];
                       final email = (m['email'] ?? '') as String;
                       final name = (m['displayName'] ?? m['fullName'] ?? email) as String;
-                      final uid = (m['uid'] ?? m['id']) as String;
+                      // Canonical field name in customer-app member docs is
+                      // `userId` (see PAGENTZDEV `org_member_model.dart`).
+                      // Don't fall back to `m['id']` — that's the doc id and,
+                      // even though the customer app currently happens to use
+                      // uid as doc id, relying on that conflates two
+                      // identities and breaks if the schema ever changes.
+                      final uid = (m['userId'] ?? '') as String;
+                      assert(uid.isNotEmpty, 'member doc missing userId field');
                       return ListTile(
                         leading: CircleAvatar(
                           radius: 16,

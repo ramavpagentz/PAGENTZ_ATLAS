@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../core/services/audit_log_service.dart';
 import '../theme/atlas_colors.dart';
@@ -38,7 +40,22 @@ class PiiField extends StatefulWidget {
 }
 
 class _PiiFieldState extends State<PiiField> {
+  /// Reveals stay on screen for this long, then auto-rehide. PII is at
+  /// least as sensitive as a webhook secret — same protection applies.
+  static const _autoRehide = Duration(seconds: 30);
+
+  /// Reasons must be at least this many characters. Matches
+  /// `RevealableSecret` and the spec's reveal-with-reason flow.
+  static const _minReasonLength = 10;
+
   bool _revealed = false;
+  Timer? _rehideTimer;
+
+  @override
+  void dispose() {
+    _rehideTimer?.cancel();
+    super.dispose();
+  }
 
   String _mask(String s) {
     if (s.isEmpty) return '—';
@@ -127,7 +144,8 @@ class _PiiFieldState extends State<PiiField> {
           children: [
             const Text(
               'Why are you revealing this customer\'s PII? '
-              'This action will be recorded in the audit log forever.',
+              'This action will be recorded in the audit log forever, '
+              'and the value will auto-hide after 30 seconds.',
               style: TextStyle(fontSize: 13, color: AtlasColors.textSecondary),
             ),
             const SizedBox(height: 14),
@@ -136,7 +154,8 @@ class _PiiFieldState extends State<PiiField> {
               autofocus: true,
               maxLines: 2,
               decoration: const InputDecoration(
-                hintText: 'e.g. Verifying identity for ticket T-A4F2C',
+                hintText:
+                    'Reason (≥ 10 chars), e.g. "Verifying identity for ticket T-A4F2C"',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -150,7 +169,7 @@ class _PiiFieldState extends State<PiiField> {
           ElevatedButton(
             onPressed: () {
               final r = controller.text.trim();
-              if (r.length < 5) return;
+              if (r.length < _minReasonLength) return;
               Navigator.of(context).pop(r);
             },
             child: const Text('Reveal'),
@@ -160,13 +179,34 @@ class _PiiFieldState extends State<PiiField> {
     );
     if (reason == null || reason.isEmpty) return;
 
-    AuditLogService.instance.log(
-      action: 'VIEWED_PII',
-      targetType: widget.targetType,
-      targetId: widget.targetId,
-      targetDisplay: widget.targetDisplay,
-      reason: reason,
-    );
+    // Fail closed: reveal-with-reason is a security guarantee, not best-
+    // effort logging. If the audit row cannot be written, refuse to
+    // unmask the value.
+    try {
+      await AuditLogService.instance.logStrict(
+        action: 'VIEWED_PII',
+        targetType: widget.targetType,
+        targetId: widget.targetId,
+        targetDisplay: widget.targetDisplay,
+        reason: reason,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Audit log unavailable — reveal blocked. ($e)'),
+          backgroundColor: AtlasColors.danger,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
     setState(() => _revealed = true);
+    _rehideTimer?.cancel();
+    _rehideTimer = Timer(_autoRehide, () {
+      if (mounted) setState(() => _revealed = false);
+    });
   }
 }

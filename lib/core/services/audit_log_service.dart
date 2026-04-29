@@ -21,7 +21,58 @@ class AuditLogService {
     _currentStaff = staff;
   }
 
+  /// Best-effort audit log write. Swallows errors so the user-facing
+  /// action isn't broken by an audit blip.
+  ///
+  /// **Do not use this for security-critical reveals or destructive
+  /// admin actions** — those must use [logStrict] so a failed audit
+  /// fails the action closed.
   Future<void> log({
+    required String action,
+    required String targetType,
+    required String targetId,
+    String? targetDisplay,
+    String? reason,
+    Map<String, dynamic>? changes,
+  }) async {
+    try {
+      await _write(
+        action: action,
+        targetType: targetType,
+        targetId: targetId,
+        targetDisplay: targetDisplay,
+        reason: reason,
+        changes: changes,
+      );
+    } catch (_) {
+      // Best-effort. In production, route this to a separate error reporter.
+    }
+  }
+
+  /// Strict audit log write. Throws if the audit row cannot be persisted —
+  /// callers should catch and refuse the user-facing action when that
+  /// happens. Use for reveal-with-reason flows, password resets, force
+  /// sign-out, and any other "if it didn't audit, it must not happen"
+  /// operation.
+  Future<void> logStrict({
+    required String action,
+    required String targetType,
+    required String targetId,
+    String? targetDisplay,
+    String? reason,
+    Map<String, dynamic>? changes,
+  }) async {
+    await _write(
+      action: action,
+      targetType: targetType,
+      targetId: targetId,
+      targetDisplay: targetDisplay,
+      reason: reason,
+      changes: changes,
+    );
+  }
+
+  Future<void> _write({
     required String action,
     required String targetType,
     required String targetId,
@@ -31,24 +82,23 @@ class AuditLogService {
   }) async {
     final user = _auth.currentUser;
     final staff = _currentStaff;
-    if (user == null || staff == null) return;
-
-    try {
-      await _db.collection('staff_audit_logs').add({
-        'timestamp': FieldValue.serverTimestamp(),
-        'staffUid': user.uid,
-        'staffEmail': staff.email,
-        'staffRole': staff.role.id,
-        'action': action,
-        'targetType': targetType,
-        'targetId': targetId,
-        if (targetDisplay != null) 'targetDisplay': targetDisplay,
-        if (reason != null) 'reason': reason,
-        if (changes != null) 'changes': changes,
-      });
-    } catch (_) {
-      // Audit log failure should never break the user-facing action.
-      // In production, route this to a separate error reporter.
+    if (user == null) {
+      throw StateError('Audit log: no authenticated user.');
     }
+    if (staff == null) {
+      throw StateError('Audit log: staff context not loaded.');
+    }
+    await _db.collection('staff_audit_logs').add({
+      'timestamp': FieldValue.serverTimestamp(),
+      'staffUid': user.uid,
+      'staffEmail': staff.email,
+      'staffRole': staff.role.id,
+      'action': action,
+      'targetType': targetType,
+      'targetId': targetId,
+      if (targetDisplay != null) 'targetDisplay': targetDisplay,
+      if (reason != null) 'reason': reason,
+      if (changes != null) 'changes': changes,
+    });
   }
 }

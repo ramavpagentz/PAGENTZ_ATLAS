@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/services/customer_incident_service.dart';
 import '../../../theme/atlas_colors.dart';
 import '../../../theme/atlas_text.dart';
 
@@ -84,14 +83,22 @@ Future<_NotifSnapshot> _build(String orgId) async {
   final since24h = now.subtract(const Duration(hours: 24));
   final since7d = now.subtract(const Duration(days: 7));
 
+  // 24h and 7d incident windows. The 7d query subsumes the 24h one for
+  // SMS scoping, but we still need both — 24h drives the histogram and
+  // ack-rate tile; 7d drives the SMS-7d count and the total-incidents
+  // tile. Run them in parallel.
   final incidents24Future = db
       .collection('inbound_emails')
       .where('orgId', isEqualTo: orgId)
       .where('createdAt', isGreaterThan: Timestamp.fromDate(since24h))
       .orderBy('createdAt', descending: true)
       .get();
-  final incidents7dCountFuture = CustomerIncidentService.instance
-      .countsByStatus(orgId: orgId, windowDays: 7);
+  final incidents7dFuture = db
+      .collection('inbound_emails')
+      .where('orgId', isEqualTo: orgId)
+      .where('createdAt', isGreaterThan: Timestamp.fromDate(since7d))
+      .orderBy('createdAt', descending: true)
+      .get();
 
   // sms_incident_map is org-agnostic; we filter by `incidentId` after pulling
   // a window of recent rows. To stay performant, we cap at 200 most-recent
@@ -103,14 +110,14 @@ Future<_NotifSnapshot> _build(String orgId) async {
       .limit(200)
       .get();
 
-  final results = await Future.wait<dynamic>([
+  final results = await Future.wait<QuerySnapshot>([
     incidents24Future,
-    incidents7dCountFuture,
+    incidents7dFuture,
     smsRecentFuture,
   ]);
-  final incs24 = results[0] as QuerySnapshot;
-  final counts7d = results[1] as Map<String, int>;
-  final sms = results[2] as QuerySnapshot;
+  final incs24 = results[0];
+  final incs7dDocs = results[1];
+  final sms = results[2];
 
   // Incident bucket histogram (24 hourly buckets).
   final buckets = List<int>.filled(24, 0);
@@ -120,8 +127,12 @@ Future<_NotifSnapshot> _build(String orgId) async {
     final data = d.data() as Map<String, dynamic>;
     final t = (data['createdAt'] as Timestamp?)?.toDate();
     if (t == null) continue;
+    // Skip out-of-range incidents instead of clamping. Future-dated
+    // entries (clock skew) and any rows that slip past the where-filter
+    // shouldn't lie about which bucket they belong in.
     final hoursAgo = now.difference(t).inHours;
-    final idx = 23 - hoursAgo.clamp(0, 23);
+    if (hoursAgo < 0 || hoursAgo >= 24) continue;
+    final idx = 23 - hoursAgo;
     buckets[idx] += 1;
     final status = (data['status'] as String?) ?? 'open';
     if (status == 'open') {
@@ -132,16 +143,8 @@ Future<_NotifSnapshot> _build(String orgId) async {
   }
 
   // SMS rows scoped to this org by intersecting incidentId with this org's
-  // incidents from the same query window.
+  // incidents.
   final orgIncidentIds = incs24.docs.map((d) => d.id).toSet();
-  // Also consider incidents in 7d window for smsLast7d. Quick fetch: read
-  // the 7d incident ids in a separate light query.
-  final incs7dDocs = await db
-      .collection('inbound_emails')
-      .where('orgId', isEqualTo: orgId)
-      .where('createdAt', isGreaterThan: Timestamp.fromDate(since7d))
-      .orderBy('createdAt', descending: true)
-      .get();
   final orgIncident7dIds = incs7dDocs.docs.map((d) => d.id).toSet();
 
   var smsLast24h = 0;
@@ -161,8 +164,10 @@ Future<_NotifSnapshot> _build(String orgId) async {
 
   return _NotifSnapshot(
     incidentsLast24h: incs24.docs.length,
-    incidentsLast7d:
-        (counts7d['open'] ?? 0) + (counts7d['ack'] ?? 0) + (counts7d['acknowledged'] ?? 0) + (counts7d['resolved'] ?? 0),
+    // Use the actual count from the 7d query — don't sum a hardcoded set
+    // of status keys, that silently drops `closed` / `cancelled` /
+    // anything else and undercounts the total.
+    incidentsLast7d: incs7dDocs.docs.length,
     ackedLast24h: acked,
     unackedLast24h: unacked,
     smsLast24h: smsLast24h,

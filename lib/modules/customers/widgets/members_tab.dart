@@ -13,14 +13,35 @@ import '../../../theme/atlas_text.dart';
 /// Note: MFA enrollment, account-locked state, and failed-login counts
 /// live in Firebase Auth and are not exposed on the client. A surface for
 /// those would need a Cloud Function.
-class MembersTab extends StatelessWidget {
+class MembersTab extends StatefulWidget {
   final String orgId;
   const MembersTab({super.key, required this.orgId});
 
   @override
+  State<MembersTab> createState() => _MembersTabState();
+}
+
+class _MembersTabState extends State<MembersTab> {
+  /// State-scoped cache so it dies with the page (no process-wide growth)
+  /// and gets a clean slate every time staff opens a new customer.
+  late final _LastActiveCache _lastActiveCache;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastActiveCache = _LastActiveCache();
+  }
+
+  @override
+  void dispose() {
+    _lastActiveCache.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: CustomerService.instance.watchOrgMembers(orgId),
+      stream: CustomerService.instance.watchOrgMembers(widget.orgId),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -64,7 +85,9 @@ class MembersTab extends StatelessWidget {
               child: Column(
                 children: [
                   const _HeaderRow(),
-                  ...members.map((m) => _Row(member: m)),
+                  ...members.map(
+                    (m) => _Row(member: m, cache: _lastActiveCache),
+                  ),
                 ],
               ),
             ),
@@ -94,6 +117,60 @@ class MembersTab extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Page-scoped cache for `users/{uid}.lastActiveAt` lookups. TTL'd so
+/// values stay reasonably fresh; cleared in [MembersTab.dispose]. Errors
+/// are NOT cached — a transient network blip on one fetch should not
+/// poison subsequent reads.
+class _LastActiveCache {
+  static const _ttl = Duration(seconds: 30);
+  final Map<String, _CacheEntry> _entries = {};
+  final Map<String, Future<DateTime?>> _inflight = {};
+  bool _disposed = false;
+
+  Future<DateTime?> fetch(String uid) {
+    if (_disposed) return Future.value(null);
+    final cached = _entries[uid];
+    if (cached != null &&
+        DateTime.now().difference(cached.fetchedAt) < _ttl) {
+      return Future.value(cached.value);
+    }
+    return _inflight.putIfAbsent(uid, () async {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        final t = doc.data()?['lastActiveAt'];
+        final when = t is Timestamp ? t.toDate() : null;
+        // Cache successful fetches (even when value is null — that means
+        // the user has no lastActiveAt yet, which is real data). Errors
+        // below are NOT cached so we retry on next render.
+        if (!_disposed) {
+          _entries[uid] = _CacheEntry(when, DateTime.now());
+        }
+        return when;
+      } catch (_) {
+        // Don't cache errors. Next render retries.
+        return null;
+      } finally {
+        _inflight.remove(uid);
+      }
+    });
+  }
+
+  void dispose() {
+    _disposed = true;
+    _entries.clear();
+    _inflight.clear();
+  }
+}
+
+class _CacheEntry {
+  final DateTime? value;
+  final DateTime fetchedAt;
+  _CacheEntry(this.value, this.fetchedAt);
 }
 
 class _SecurityFlagBanner extends StatelessWidget {
@@ -192,7 +269,8 @@ class _HCell extends StatelessWidget {
 
 class _Row extends StatelessWidget {
   final Map<String, dynamic> member;
-  const _Row({required this.member});
+  final _LastActiveCache cache;
+  const _Row({required this.member, required this.cache});
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +285,11 @@ class _Row extends StatelessWidget {
 
     final invitedAt = _toDate(member['invitedAt']);
     final acceptedAt = _toDate(member['acceptedAt']);
-    final userId = (member['userId'] ?? member['id'] ?? '') as String;
+    // Canonical field is `userId` (see PAGENTZDEV `org_member_model.dart`).
+    // Empty for pending invites — that's expected; we render `—` below.
+    final userId = (member['userId'] ?? '') as String;
+    assert(isPending || userId.isNotEmpty,
+        'active member doc missing userId field');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -287,7 +369,7 @@ class _Row extends StatelessWidget {
                 ? const Text('—',
                     style: TextStyle(
                         fontSize: 12, color: AtlasColors.textMuted))
-                : _LastActiveCell(userId: userId),
+                : _LastActiveCell(userId: userId, cache: cache),
           ),
           SizedBox(
             width: 110,
@@ -388,39 +470,17 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-/// One-shot Future read of `users/{uid}` to surface `lastActiveAt`.
-/// Cached in a static Map keyed by uid so re-renders don't re-query.
+/// One-shot Future read of `users/{uid}.lastActiveAt`, hitting the parent
+/// State's [_LastActiveCache] for de-dup + TTL'd reuse.
 class _LastActiveCell extends StatelessWidget {
-  static final _cache = <String, DateTime?>{};
-  static final _inflight = <String, Future<DateTime?>>{};
-
   final String userId;
-  const _LastActiveCell({required this.userId});
-
-  Future<DateTime?> _fetch() {
-    if (_cache.containsKey(userId)) return Future.value(_cache[userId]);
-    return _inflight.putIfAbsent(userId, () async {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .get();
-        final t = doc.data()?['lastActiveAt'];
-        final when = t is Timestamp ? t.toDate() : null;
-        _cache[userId] = when;
-        _inflight.remove(userId);
-        return when;
-      } catch (_) {
-        _inflight.remove(userId);
-        return null;
-      }
-    });
-  }
+  final _LastActiveCache cache;
+  const _LastActiveCell({required this.userId, required this.cache});
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<DateTime?>(
-      future: _fetch(),
+      future: cache.fetch(userId),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Text('…',

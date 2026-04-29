@@ -23,32 +23,37 @@ class OrgAlertBanner extends StatelessWidget {
       stream: CustomerIncidentService.instance.watchForOrg(orgId, limit: 25),
       builder: (context, snap) {
         final all = snap.data ?? const <CustomerIncident>[];
+        // Single source of truth for "active and not acked": the customer-
+        // side `status` field. Mixing in `acknowledgedAt` produced
+        // contradictory banner states when the two fields disagreed (mid-
+        // transition rows where the timestamp was set but status hadn't
+        // flipped yet). `i.isOpen` already wraps the status check.
         final active = all.where((i) => i.isOpen).toList();
         if (active.isEmpty) return const SizedBox.shrink();
 
-        // Pick worst signal: P1 open > P2 open > old unacked.
+        // Pick worst signal: P1 open > P2 open > old open.
         final p1 = active.firstWhereOrNull(
           (i) => (i.priority ?? '').toUpperCase() == 'P1',
         );
         final p2 = active.firstWhereOrNull(
           (i) => (i.priority ?? '').toUpperCase() == 'P2',
         );
-        final oldestUnacked = active
+        final now = DateTime.now();
+        final oldestStale = active
             .where((i) =>
-                i.acknowledgedAt == null &&
                 i.createdAt != null &&
-                DateTime.now().difference(i.createdAt!).inMinutes >= 10)
+                now.difference(i.createdAt!).inMinutes >= 10)
             .toList()
           ..sort((a, b) => a.createdAt!.compareTo(b.createdAt!));
-        final stale = oldestUnacked.isNotEmpty ? oldestUnacked.first : null;
+        final stale = oldestStale.isNotEmpty ? oldestStale.first : null;
 
         final tiles = <Widget>[];
         if (p1 != null) {
           tiles.add(_BannerTile(
             severity: _BannerSeverity.critical,
-            title: 'Active P1 incident: ${p1.title.isNotEmpty ? p1.title : "(no title)"}',
-            subtitle: _ageLabel(p1) +
-                (p1.acknowledgedAt == null ? ' · NOT acknowledged' : ''),
+            title:
+                'Active P1 incident: ${p1.title.isNotEmpty ? p1.title : "(no title)"}',
+            subtitle: '${_ageLabel(p1)} · status open',
             onTap: () => Get.toNamed(
               AtlasRoutes.customerIncidentDetail,
               arguments: p1.id,
@@ -57,7 +62,8 @@ class OrgAlertBanner extends StatelessWidget {
         } else if (p2 != null) {
           tiles.add(_BannerTile(
             severity: _BannerSeverity.warning,
-            title: 'Active P2 incident: ${p2.title.isNotEmpty ? p2.title : "(no title)"}',
+            title:
+                'Active P2 incident: ${p2.title.isNotEmpty ? p2.title : "(no title)"}',
             subtitle: _ageLabel(p2),
             onTap: () => Get.toNamed(
               AtlasRoutes.customerIncidentDetail,
@@ -68,19 +74,20 @@ class OrgAlertBanner extends StatelessWidget {
           tiles.add(_BannerTile(
             severity: _BannerSeverity.warning,
             title:
-                'Unacked open incident: ${stale.title.isNotEmpty ? stale.title : "(no title)"}',
-            subtitle: 'Created ${_ageLabel(stale)}, no ack yet',
+                'Open incident over 10m: ${stale.title.isNotEmpty ? stale.title : "(no title)"}',
+            subtitle: 'Created ${_ageLabel(stale)}',
             onTap: () => Get.toNamed(
               AtlasRoutes.customerIncidentDetail,
               arguments: stale.id,
             ),
           ));
         } else {
-          // Active incidents exist but none are urgent — show a soft note.
+          // Active incidents exist but none are old yet — show a soft note.
           tiles.add(_BannerTile(
             severity: _BannerSeverity.info,
-            title: '${active.length} open incident${active.length == 1 ? "" : "s"}',
-            subtitle: 'all acknowledged · monitoring',
+            title:
+                '${active.length} open incident${active.length == 1 ? "" : "s"}',
+            subtitle: 'recent · monitoring',
             onTap: null,
           ));
         }
