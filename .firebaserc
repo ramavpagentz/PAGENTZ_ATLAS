@@ -1,12 +1,29 @@
 {
   "projects": {
-    "default": "pagentz"
+    "default": "pagentz",
+    "dev": "pagentz",
+    "staging": "pagentz-staging",
+    "prod": "pagentz-production"
   },
   "targets": {
     "pagentz": {
       "hosting": {
         "atlas": [
           "atlas-13fd3"
+        ]
+      }
+    },
+    "pagentz-staging": {
+      "hosting": {
+        "atlas-staging": [
+          "atlas-staging"
+        ]
+      }
+    },
+    "pagentz-production": {
+      "hosting": {
+        "atlas-prod": [
+          "atlas-prod"
         ]
       }
     }

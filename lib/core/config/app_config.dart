@@ -1,23 +1,42 @@
 /// Atlas environment configuration.
 ///
-/// Inject via `--dart-define`:
-/// ```
+/// `ENV` is the only required `--dart-define`. Everything else has an
+/// env-aware default that picks the right value automatically based on `ENV`.
+/// You can still override any value with a `--dart-define` of the same name.
+///
+/// Supported envs: `staging`, `prod`. `dev` is also accepted but Atlas
+/// targets only staging + production per the agreed rollout (Option C).
+///
+/// ```sh
+/// # Staging Atlas → talks to pagentz-staging Firebase
+/// flutter run -d chrome --dart-define=ENV=staging
+///
+/// # Production Atlas → talks to pagentz-production Firebase
 /// flutter run -d chrome --dart-define=ENV=prod
 /// ```
 class AppConfig {
   AppConfig._();
 
-  static const String env = String.fromEnvironment('ENV', defaultValue: 'dev');
+  static const String env = String.fromEnvironment('ENV', defaultValue: 'staging');
 
   static bool get isProduction => env == 'prod';
   static bool get isStaging => env == 'staging';
   static bool get isDev => env == 'dev';
 
   /// Customer-facing PagentZ web app URL — used to open impersonation sessions.
-  static const String pagentzWebUrl = String.fromEnvironment(
-    'PAGENTZ_WEB_URL',
-    defaultValue: 'https://pagentz.web.app',
-  );
+  /// Each Atlas env hands off to the matching customer-app env.
+  static String get pagentzWebUrl {
+    const override = String.fromEnvironment('PAGENTZ_WEB_URL');
+    if (override.isNotEmpty) return override;
+    switch (env) {
+      case 'prod':
+        return 'https://pagentz-production.web.app';
+      case 'staging':
+        return 'https://pagentz-staging.web.app';
+      default:
+        return 'https://pagentz.web.app';
+    }
+  }
 
   /// Bootstrap admin — auto-provisioned on first sign-in attempt.
   /// After the first admin exists, they can create more staff from the

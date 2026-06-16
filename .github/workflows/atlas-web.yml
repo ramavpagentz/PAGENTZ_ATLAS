@@ -1,0 +1,98 @@
+name: Atlas Web per env
+
+# Triggers a per-env build + deploy when you push to one of the two
+# deployment branches. Each branch maps to its own Firebase project and
+# hosting target, picks the right --dart-define=ENV, and ships only that
+# env.
+#
+#   staging branch    -> pagentz-staging / atlas-staging.web.app
+#   production branch -> pagentz-production / atlas-prod.web.app
+#
+# Workflow_dispatch lets you re-run any env manually from the GitHub UI.
+#
+# Required GitHub secrets (Settings -> Secrets and variables -> Actions):
+#   FIREBASE_TOKEN  - legacy CI token used for hosting deploy.
+#                     Generate with: firebase login:ci
+#
+# Once we have per-env service accounts (blocked on the same org-policy
+# issue as the customer app's APK pipeline), swap FIREBASE_TOKEN out for
+# FIREBASE_SA_STAGING / FIREBASE_SA_PROD and use google-github-actions
+# auth + firebase-tools.
+
+on:
+  push:
+    branches:
+      - staging
+      - production
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Environment to deploy (staging, production)'
+        required: true
+        default: 'staging'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve env from branch / dispatch input
+        id: resolve
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          ENV_INPUT="${{ github.event.inputs.env }}"
+          ENV="${ENV_INPUT:-$BRANCH}"
+
+          case "$ENV" in
+            production|prod)
+              echo "env=prod" >> $GITHUB_OUTPUT
+              echo "project=pagentz-production" >> $GITHUB_OUTPUT
+              echo "hosting_target=atlas-prod" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "env=staging" >> $GITHUB_OUTPUT
+              echo "project=pagentz-staging" >> $GITHUB_OUTPUT
+              echo "hosting_target=atlas-staging" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "Unknown env '$ENV' — refusing to deploy" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.1"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Flutter web (${{ steps.resolve.outputs.env }})
+        run: |
+          flutter build web --release \
+            --pwa-strategy=none \
+            --dart-define=ENV=${{ steps.resolve.outputs.env }}
+
+      - name: Cache-bust web assets
+        run: |
+          BUILD_VERSION=$(date +%s)
+          sed -i "s/main.dart.js/main.dart.js?v=$BUILD_VERSION/" build/web/flutter_bootstrap.js || true
+          sed -i "s/flutter_service_worker.js.*/flutter_service_worker.js?v=$BUILD_VERSION')/" build/web/index.html || true
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          firebase deploy \
+            --only hosting:${{ steps.resolve.outputs.hosting_target }} \
+            --project ${{ steps.resolve.outputs.project }} \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
