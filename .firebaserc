@@ -16,16 +16,17 @@
     "pagentz-staging": {
       "hosting": {
         "atlas-staging": [
-          "atlas-staging"
+          "pagentz-atlas-staging"
         ]
       }
     },
     "pagentz-production": {
       "hosting": {
         "atlas-prod": [
-          "atlas-prod"
+          "pagentz-atlas-prod"
         ]
       }
     }
-  }
+  },
+  "etags": {}
 }
