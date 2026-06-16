@@ -1,17 +1,12 @@
 // Atlas Firebase configuration — env-aware.
 //
-// One DefaultFirebaseOptions class with a static `currentPlatform` getter
-// that picks the right [FirebaseOptions] block based on AppConfig.env.
+// Atlas shares Firebase projects with the customer PagentZ app — there are
+// no separate "Atlas" Firebase projects. We reuse the same web-app
+// registrations the customer-app's firebase_options_*.dart files use so
+// both apps hit the same Auth, Firestore, and Cloud Functions per env.
 //
-// Steps to populate staging + prod blocks:
-//   1. Firebase Console → Pagentz Staging → Project Settings →
-//      "Your apps" → add Web app (nickname: "Atlas (staging)") →
-//      copy appId + apiKey + measurementId into _stagingOptions below.
-//   2. Same for Pagentz Production → "Atlas (prod)" → _prodOptions.
-//
-// Until those web apps exist the staging/prod options use the same project's
-// known constants (projectId, messagingSenderId, authDomain, storageBucket)
-// but appId + apiKey MUST be replaced or Firebase init will fail at runtime.
+// The selected env at build time comes from AppConfig.env, which reads
+// the `--dart-define=ENV=...` value.
 //
 // ignore_for_file: type=lint
 
@@ -37,7 +32,7 @@ class DefaultFirebaseOptions {
   }
 
   // ── DEV (pagentz) ──────────────────────────────────────────────────────────
-  // Current pre-Option-C config. Kept for local dev / fallback.
+  // Same web app as customer-app dev (PAGENTZDEV-ramadev/lib/firebase_options_dev.dart).
   static const FirebaseOptions _devOptions = FirebaseOptions(
     apiKey: 'AIzaSyBc4CjsXMAcIPjgk8e8T_MEJgs1WWMx6Uw',
     appId: '1:691991294097:web:ed8e46f31bdeb47a1a0f30',
@@ -49,28 +44,26 @@ class DefaultFirebaseOptions {
   );
 
   // ── STAGING (pagentz-staging) ──────────────────────────────────────────────
-  // TODO(env-rollout): replace appId + apiKey + measurementId with the values
-  // from the Atlas web app you register on pagentz-staging.
+  // Same web app as customer-app staging (firebase_options_staging.dart).
   static const FirebaseOptions _stagingOptions = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_STAGING_WEB_API_KEY',
-    appId: 'REPLACE_WITH_STAGING_WEB_APP_ID',
+    apiKey: 'AIzaSyAlkY4rH1BB44N5O28hp8V3wg6l1gqEarQ',
+    appId: '1:301806333927:web:437a49d9aa55bb09811742',
     messagingSenderId: '301806333927',
     projectId: 'pagentz-staging',
     authDomain: 'pagentz-staging.firebaseapp.com',
     storageBucket: 'pagentz-staging.firebasestorage.app',
-    measurementId: 'REPLACE_WITH_STAGING_MEASUREMENT_ID',
+    measurementId: 'G-JDT53G3MZG',
   );
 
   // ── PRODUCTION (pagentz-production) ────────────────────────────────────────
-  // TODO(env-rollout): replace appId + apiKey + measurementId with the values
-  // from the Atlas web app you register on pagentz-production.
+  // Same web app as customer-app prod (firebase_options_prod.dart).
   static const FirebaseOptions _prodOptions = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_PROD_WEB_API_KEY',
-    appId: 'REPLACE_WITH_PROD_WEB_APP_ID',
+    apiKey: 'AIzaSyAb-XjV48nWfggMYGfTZDM3gMYcUIgZNZ4',
+    appId: '1:584777677575:web:3f847d8634f7b08e3c23a2',
     messagingSenderId: '584777677575',
     projectId: 'pagentz-production',
     authDomain: 'pagentz-production.firebaseapp.com',
     storageBucket: 'pagentz-production.firebasestorage.app',
-    measurementId: 'REPLACE_WITH_PROD_MEASUREMENT_ID',
+    measurementId: 'G-K1BLDJ8SKV',
   );
 }

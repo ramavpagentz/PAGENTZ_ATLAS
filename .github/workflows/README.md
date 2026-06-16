@@ -40,16 +40,13 @@ APK upload step.)
 These run from your laptop, **NOT** in CI. Done once per env, then
 forgotten.
 
-### 1. Create the Atlas web app on each Firebase project
+### 1. Firebase web-app registration — already done
 
-For each of `pagentz-staging` and `pagentz-production`:
-
-1. Firebase Console → Project Settings → "Your apps" → **Add app** → Web.
-2. Nickname: `Atlas (staging)` / `Atlas (prod)`. Skip Firebase Hosting
-   setup at this step (we configure hosting separately below).
-3. Copy `appId`, `apiKey`, and `measurementId` from the SDK snippet.
-4. Paste into the matching block in `lib/firebase_options.dart`
-   (`_stagingOptions` / `_prodOptions`).
+Atlas shares the same web-app registrations the customer PagentZ app
+already has in each Firebase project. The `apiKey` / `appId` /
+`measurementId` values in `lib/firebase_options.dart` are copied straight
+from the customer-app's `firebase_options_staging.dart` and
+`firebase_options_prod.dart`. No new web-app registration needed.
 
 ### 2. Create the hosting sites
 
